@@ -1,0 +1,65 @@
+# Runs the White Build price check on GitHub's servers - nothing to install on your PC.
+#  - automatically every day (see "schedule" below; times are UTC)
+#  - or by hand: GitHub -> Actions -> "White Build price check" -> "Run workflow"
+# Gmail details come from the repository secrets GMAIL_ADDRESS and GMAIL_APP_PASSWORD
+# (Settings -> Secrets and variables -> Actions). Without them it runs but sends no email.
+name: White Build price check
+
+on:
+  schedule:
+    - cron: "17 5 * * *"      # every day at 05:17 UTC = 08:17 Kyiv (summer) / 07:17 (winter)
+  workflow_dispatch:           # adds a "Run workflow" button
+
+concurrency:
+  group: pricecheck
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      # Keeps the cookie-banner choices between runs, like the browser-profile folder on a PC.
+      - name: Restore browser profile
+        uses: actions/cache@v4
+        with:
+          path: browser-profile
+          key: browser-profile-${{ github.run_id }}
+          restore-keys: browser-profile-
+
+      - name: Run price check
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          if [ -z "$GMAIL_ADDRESS" ] || [ -z "$GMAIL_APP_PASSWORD" ]; then
+            echo "::warning::GMAIL_ADDRESS / GMAIL_APP_PASSWORD secrets are not set - running without sending the email."
+            python pricecheck.py --no-email
+          else
+            python pricecheck.py
+          fi
+
+      - name: Save report, screenshots and debug files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-${{ github.run_number }}
+          path: |
+            runs/
+            logs/
+          retention-days: 30
+          if-no-files-found: ignore
