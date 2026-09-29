@@ -141,6 +141,31 @@ Unregister-ScheduledTask -TaskName "White Build price check" -Confirm:$false
 To change the time or interval, delete it and run `setup_task.ps1` again, or edit the task's
 trigger in Task Scheduler.
 
+### 1.7 Desktop shortcut and control panel (optional, recommended)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File create_shortcut.ps1
+```
+
+This puts a **"White Build Price Check"** icon on your Desktop. Double-click it to open a small
+window where you can do everything without typing commands:
+
+- **Run the price check**: tick *Show the browser* and/or *Don't send the email*, optionally type
+  rows like `2, 6c, F3` in *Only these rows*, then click **▶ Run check**. **Full run + email** does
+  a normal run; **Send test email** checks the Gmail setup; **■ Stop** cancels a run.
+  The program's output appears live in the *Output* box.
+- **Reports and settings**: open the latest report, the `runs` folder or the log, and edit
+  `config.json` or `.env` in Notepad (if `.env` doesn't exist yet, it's created from `.env.example`).
+  The line underneath shows the latest report's subject and any rows that couldn't be read.
+- **Automatic runs**: install or update the 4-hour schedule, start it now, or remove it. The
+  status line shows the next run, the last run and its result.
+
+Double-clicking `control_panel.pyw` in the folder works too, but the shortcut is simpler. The
+window needs Python's "tcl/tk" part, which the python.org installer includes by default.
+
+Avoid starting a manual run while the scheduled run is working (both use the same browser profile,
+so one of them would fail to start the browser).
+
 ---
 
 ## 2. Everyday use
@@ -250,6 +275,7 @@ pricecheck/specs.py    spec rules for F1–F3
 pricecheck/sites/      geizhals.py, idealo.py, amazon.py extractors
 pricecheck/report.py   report math, HTML (inline styles) and plain text
 pricecheck/emailer.py  Gmail SMTP, attachments (downscaled above 20 MB)
+pricecheck/gui.py      desktop control panel (Tkinter); control_panel.pyw + create_shortcut.ps1 start it
 tests/                 pytest; fixtures/*.html are synthetic pages modelled on the real ones
 ```
 
