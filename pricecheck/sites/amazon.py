@@ -32,6 +32,12 @@ WANTED_COLOUR_RE = re.compile(r"(?:Farbe|Colou?r)\s*:?\s*(weiß|weiss|white)\b",
 ANY_COLOUR_RE = re.compile(r"(?:Farbe|Colou?r)\s*:\s*([^\n]+)", re.I)
 SELLER_TEXT_RE = re.compile(r"(?:Verkäufer|Verkauf durch|Sold by|Seller)\s*:?\s*([^\n]+)", re.I)
 UNAVAILABLE_RE = re.compile(r"derzeit nicht verfügbar|currently unavailable", re.I)
+# Amazon's bot interstitials ("click to continue shopping") and error pages. Never clicked, only detected.
+BLOCK_PAGE_RE = re.compile(
+    r"um mit dem Einkaufen fortzufahren|Weiter shoppen|continue shopping|automatisierte[nr]? Zugriff|"
+    r"automated access|Tut uns Leid|Sorry, we just need to make sure", re.I)
+# Present on every real product page; if none exists, this is not a product page at all.
+PRODUCT_PAGE_SELECTORS = ["#dp", "#dp-container", "#centerCol", "#productTitle", "#title", "#ppd"]
 
 # First .a-offscreen inside the container that is not a struck-through old price.
 _JS_PRICE = """
@@ -85,8 +91,15 @@ def read(session, row: RowResult, url: str, shot_name: str) -> RowResult:
         session.dump_debug(row.id)
         return row
 
-    variant_text = _first_text(page, VARIANT_SELECTORS)
     body = session.body_text()
+    if not any(page.locator(s).count() for s in PRODUCT_PAGE_SELECTORS):
+        blocked = BLOCK_PAGE_RE.search(body) or not body.strip()
+        log.warning("[%s] not a product page (%s)", row.id, "block page" if blocked else "unknown page")
+        row.status = "captcha" if blocked else "no_price"
+        session.dump_debug(row.id)
+        return row
+
+    variant_text = _first_text(page, VARIANT_SELECTORS)
     if not (WANTED_COLOUR_RE.search(variant_text) or WANTED_COLOUR_RE.search(body)):
         m = ANY_COLOUR_RE.search(variant_text) or ANY_COLOUR_RE.search(body)
         log.warning("[%s] wrong variant: %s", row.id, clean(m.group(0)) if m else "no 'Farbe: weiß' on page")

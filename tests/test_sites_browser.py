@@ -207,3 +207,12 @@ def test_amazon_unavailable(page, tmp_path):
     s = routed_session(page, tmp_path, {}, overrides={"amazon.de": body})
     row = amazon.read(s, RowResult(id="7a"), AMAZON_URL, "7a.png")
     assert row.ok and row.in_stock is False
+
+
+def test_amazon_continue_shopping_interstitial(page, tmp_path):
+    body = ("<html><head><title>Amazon.de</title></head><body><h4>Klicken Sie auf die Schaltfläche unten, "
+            "um mit dem Einkaufen fortzufahren</h4><button>Weiter shoppen</button></body></html>")
+    s = routed_session(page, tmp_path, {}, overrides={"amazon.de": body})
+    row = amazon.read(s, RowResult(id="7a"), AMAZON_URL, "7a.png")
+    assert row.status == "captcha"
+    assert row.status_text() == "blocked by site (captcha)"

@@ -1,13 +1,15 @@
-# Runs the White Build price check on GitHub's servers - nothing to install on your PC.
-#  - automatically every day (see "schedule" below; times are UTC)
-#  - or by hand: GitHub -> Actions -> "White Build price check" -> "Run workflow"
+# Runs the White Build price check on GitHub's servers.
+# NOTE (tested 2026-09-29): geizhals.de and idealo.de answer GitHub's servers with "403 Forbidden"
+# and amazon.de shows a bot-check page, so from here every row ends up as "page failed to load" /
+# "blocked by site". Bypassing that is not allowed (see CLAUDE.md), so the daily schedule is OFF and
+# the real runs happen on the Windows PC. The manual "Run workflow" button is kept for re-testing.
 # Gmail details come from the repository secrets GMAIL_ADDRESS and GMAIL_APP_PASSWORD
 # (Settings -> Secrets and variables -> Actions). Without them it runs but sends no email.
 name: White Build price check
 
 on:
-  schedule:
-    - cron: "17 5 * * *"      # every day at 05:17 UTC = 08:17 Kyiv (summer) / 07:17 (winter)
+  # schedule:
+  #   - cron: "17 5 * * *"    # every day at 05:17 UTC = 08:17 Kyiv (summer) / 07:17 (winter)
   workflow_dispatch:           # adds a "Run workflow" button
 
 concurrency:
