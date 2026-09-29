@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>consent shadow</title></head><body>
+<p>Seite mit Usercentrics-artigem Banner im Shadow DOM</p>
+<div id="usercentrics-root"></div>
+<script>
+ window.choice = null;
+ const root = document.getElementById('usercentrics-root').attachShadow({mode: 'open'});
+ root.innerHTML = '<div role="dialog"><p>Datenschutz-Einstellungen</p><button id="a">Alles akzeptieren</button> <button id="n">Nur notwendige Cookies</button></div>';
+ root.getElementById('a').onclick = () => { window.choice = 'accept'; };
+ root.getElementById('n').onclick = () => { window.choice = 'necessary'; };
+</script>
+</body></html>

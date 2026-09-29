@@ -1,0 +1,10 @@
+# secrets
+.env
+# local state
+browser-profile/
+runs/
+logs/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

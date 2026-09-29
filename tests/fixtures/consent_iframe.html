@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>consent iframe</title></head><body>
+<p>Seite mit Consent im iframe</p>
+<script>window.choice = null; addEventListener('message', e => { window.choice = e.data; });</script>
+<iframe id="cmp" style="width:600px;height:200px" srcdoc="<div role='dialog'><p>Wir verwenden Cookies und ähnliche Technologien.</p><button onclick=&quot;parent.postMessage('accept','*')&quot;>Alle akzeptieren</button> <button onclick=&quot;parent.postMessage('reject','*')&quot;>Alle ablehnen</button></div>"></iframe>
+</body></html>
