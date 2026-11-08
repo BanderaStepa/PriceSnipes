@@ -35,6 +35,9 @@ from .htmltext import strip_tags
 
 log = logging.getLogger(__name__)
 
+# Пауза винесена окремо, щоб тести могли її підмінити, не чіпаючи asyncio.sleep для всього процесу.
+_sleep = asyncio.sleep
+
 
 class Outcome(enum.Enum):
     OK = "ok"
@@ -91,7 +94,7 @@ class RateLimiter:
         async with self._lock:
             now = time.monotonic()
             if self._next > now:
-                await asyncio.sleep(self._next - now)
+                await _sleep(self._next - now)
                 now = time.monotonic()
             self._next = max(now, self._next) + self._interval
 
@@ -193,7 +196,7 @@ class Sender:
                 if e.retry_after > self.MAX_RETRY_AFTER or attempt == self.MAX_ATTEMPTS:
                     log.warning("Telegram просить зачекати %s с (%s, чат %s) — спробую пізніше", e.retry_after, action, chat_id)
                     return Result(Outcome.RETRY)
-                await asyncio.sleep(e.retry_after)
+                await _sleep(e.retry_after)
                 continue
             except TelegramForbiddenError as e:
                 return await self._blocked(chat_id, user_chat, e.message)
@@ -221,7 +224,7 @@ class Sender:
                 if attempt == self.MAX_ATTEMPTS:
                     log.warning("Telegram тимчасово недоступний (%s, чат %s): %s — спробую пізніше", action, chat_id, e)
                     return Result(Outcome.RETRY)
-                await asyncio.sleep(attempt)
+                await _sleep(attempt)
                 continue
             except TelegramAPIError as e:
                 log.error("Помилка Telegram (%s, чат %s): %s", action, chat_id, e)

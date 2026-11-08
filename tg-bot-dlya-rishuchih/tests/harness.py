@@ -11,6 +11,7 @@ from aiogram.types import User
 from bot.content import Content
 from bot.funnel import Funnel
 from bot.handlers import create_router
+from bot.scheduler import Scheduler
 from bot.sender import Sender
 from bot.storage import Storage
 from tests.fake_telegram import FakeClock, FakeTelegram, callback_update, message_update
@@ -29,6 +30,7 @@ class Harness:
     dp: Dispatcher
     clock: FakeClock
     content: Content
+    scheduler: Scheduler
 
     async def send(self, text: str, user: User | None = None, **kwargs) -> None:
         await self.dp.feed_update(self.bot, message_update(text, user, **kwargs))
@@ -37,6 +39,7 @@ class Harness:
         await self.dp.feed_update(self.bot, callback_update(data, user, **kwargs))
 
     async def close(self) -> None:
+        await self.scheduler.stop()
         await self.storage.close()
         await self.bot.session.close()
 
@@ -55,4 +58,6 @@ async def make_harness(content: Content, db_path: Path, *, start: int = T0, mana
     funnel = Funnel(storage=storage, content=content, sender=sender, clock=clock, manager_chat_id=manager_chat_id)
     dp = Dispatcher(funnel=funnel)
     dp.include_router(create_router())
-    return Harness(telegram=telegram, bot=bot, storage=storage, funnel=funnel, dp=dp, clock=clock, content=content)
+    scheduler = Scheduler(funnel, tick_seconds=0.01)
+    return Harness(telegram=telegram, bot=bot, storage=storage, funnel=funnel, dp=dp, clock=clock, content=content,
+                   scheduler=scheduler)

@@ -11,8 +11,8 @@ import logging
 
 from aiogram.types import InlineKeyboardMarkup
 
-from .content import Content, Package
-from .sender import Result, Sender
+from .content import Content, Package, Reminder
+from .sender import Outcome, Result, Sender
 from .storage import (
     EVENT_PACKAGE,
     EVENT_PACKAGES,
@@ -27,6 +27,10 @@ from .texts import Texts
 from .timeutils import Clock
 
 log = logging.getLogger(__name__)
+
+# Повідомлення «пропозиція завершилась» надсилаємо не пізніше ніж через 2 год після дедлайну,
+# щоб після довгого простою сервера не писати людям застарілих повідомлень.
+EXPIRED_NOTICE_GRACE = 2 * 3600
 
 
 class Funnel:
@@ -140,6 +144,77 @@ class Funnel:
 
     def is_known_package(self, package_id: str) -> bool:
         return self.content.package(package_id) is not None
+
+    # ------------------------------------------------------------------ фонові дії (планувальник)
+
+    def is_silent_time(self, now: int) -> bool:
+        """Тихі години: повідомлення приходять без звуку."""
+        silent = self.content.settings.silent_hours
+        return silent is not None and silent.contains(now, self.content.settings.timezone)
+
+    async def send_reminder(self, user: UserRecord, reminder: Reminder, now: int) -> Outcome:
+        result = await self.sender.send(
+            user.chat_id,
+            self.texts.reminder(reminder, user, now),
+            self.texts.keyboard("reminder", user, now),
+            silent=self.is_silent_time(now),
+            background=True,
+        )
+        if result.ok:
+            log.info("Нагадування %s надіслано користувачу %s", reminder.id, user.user_id)
+        return result.outcome
+
+    async def refresh_timer(self, user: UserRecord, now: int) -> Outcome | None:
+        """Оновлює живий таймер в офері, якщо показане значення змінилось. None — оновлювати не треба."""
+        every = self.content.settings.timer_update_every
+        if not every or user.offer_message_id is None:
+            return None
+        key = (user.user_id, user.offer_message_id)
+        text = self.texts.offer(user, now)
+        cached = self.timer_cache.get(key)
+        if cached is not None and (cached[0] == text or now - cached[1] < every):
+            return None
+        result = await self.sender.edit(
+            user.chat_id, user.offer_message_id, text, self.texts.keyboard("offer", user, now), background=True
+        )
+        if result.ok:
+            self.timer_cache[key] = (text, now)
+        elif result.outcome is Outcome.GONE:  # людина видалила повідомлення — більше його не чіпаємо
+            await self.storage.clear_offer_message(user.user_id, user.offer_message_id)
+            self.timer_cache.pop(key, None)
+        return result.outcome
+
+    async def finish_offer(self, user: UserRecord, now: int) -> Outcome:
+        """Дедлайн минув: таймер в офері → «час вийшов», кнопки прибираються (або лишаються, якщо продаж триває);
+        за налаштуванням — окреме повідомлення. RETRY — тимчасова проблема, повторити на наступному проході."""
+        blocked = user.is_blocked
+        if user.offer_message_id is not None and not blocked:
+            result = await self.sender.edit(
+                user.chat_id,
+                user.offer_message_id,
+                self.texts.offer(user, now),
+                self.texts.keyboard("offer", user, now),
+                background=True,
+            )
+            if result.outcome is Outcome.RETRY:
+                return Outcome.RETRY
+            blocked = result.outcome is Outcome.BLOCKED
+            self.timer_cache.pop((user.user_id, user.offer_message_id), None)
+
+        settings = self.content.settings
+        if settings.send_expired_notice and not blocked and now - user.deadline_at <= EXPIRED_NOTICE_GRACE:
+            result = await self.sender.send(
+                user.chat_id,
+                self.texts.expired_notice(user, now),
+                self.texts.keyboard("expired", user, now),
+                silent=self.is_silent_time(now),
+                background=True,
+            )
+            if result.outcome is Outcome.RETRY:
+                return Outcome.RETRY
+        await self.storage.mark_expiry_done(user.user_id)
+        log.info("Пропозиція для користувача %s завершилась", user.user_id)
+        return Outcome.OK
 
     # ------------------------------------------------------------------ допоміжне
 

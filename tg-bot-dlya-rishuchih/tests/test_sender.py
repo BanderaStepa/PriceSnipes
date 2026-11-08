@@ -18,13 +18,13 @@ from tests.fake_telegram import FakeTelegram
 
 @pytest.fixture
 def sleeps(monkeypatch):
-    """Підміняє asyncio.sleep у sender.py: тести не чекають по-справжньому."""
+    """Підміняє паузи в sender.py: тести не чекають по-справжньому."""
     calls: list[float] = []
 
     async def fake_sleep(seconds):
         calls.append(seconds)
 
-    monkeypatch.setattr(sender_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(sender_module, "_sleep", fake_sleep)
     return calls
 
 
