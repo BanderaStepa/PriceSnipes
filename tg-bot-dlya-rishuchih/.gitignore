@@ -1,0 +1,18 @@
+# секрети
+.env
+
+# локальне середовище
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# база даних і дані бота
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# архіви збірки
+dist/
