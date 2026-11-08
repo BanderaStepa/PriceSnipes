@@ -579,6 +579,10 @@ def parse_content(raw: Any, source: str = "content.yaml") -> Content:
     packages = c.packages(raw.get("packages"))
     reminders = c.reminders(raw.get("reminders"), settings.offer_duration if settings else None)
 
+    if settings is not None and settings.packages_after_expiry:
+        if not any(b in PACKAGE_BUTTONS for row in keyboards.get("expired", ()) for b in row):
+            c.warn("keyboards.expired", "пакети доступні й після завершення (packages_after_expiry: true), але під "
+                                        "повідомленням «пропозиція завершилась» немає кнопки — додайте [choose_package]")
     if settings is not None and not settings.packages_after_expiry:
         if any(b in PACKAGE_BUTTONS for row in keyboards.get("expired", ()) for b in row):
             c.warn("keyboards.expired", "після завершення пропозиції пакети недоступні "

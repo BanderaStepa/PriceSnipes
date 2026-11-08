@@ -63,7 +63,8 @@ settings:
 
   # Що відбувається після завершення пропозиції:
   #   false — пакети й посилання на оплату більше не видаються, бот відповідає текстом messages.expired;
-  #   true  — пакети доступні й далі (з price_after_expiry / payment_url_after_expiry, якщо вони вказані).
+  #   true  — пакети доступні й далі (з price_after_expiry / payment_url_after_expiry, якщо вони вказані);
+  #           тоді додайте кнопку в keyboards.expired:  - [choose_package]
   packages_after_expiry: false
 
   # true — у момент завершення пропозиції надіслати окреме повідомлення messages.expired_notice.

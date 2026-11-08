@@ -257,6 +257,12 @@ def test_package_buttons_after_expiry_warning(raw_content):
     assert not any(w.startswith("keyboards.expired:") for w in parse_content(raw_content).warnings)
 
 
+def test_open_packages_after_expiry_need_a_button(raw_content):
+    raw_content["settings"]["packages_after_expiry"] = True  # а keyboards.expired лишилась порожньою
+    content = parse_content(raw_content)
+    assert any(w.startswith("keyboards.expired:") and "[choose_package]" in w for w in content.warnings)
+
+
 # ----------------------------------------------------------------------------- файл
 
 
