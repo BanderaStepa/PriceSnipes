@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import itertools
 from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
@@ -10,7 +11,7 @@ from typing import Any
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramForbiddenError
-from aiogram.methods import DeleteMessage, EditMessageText, GetMe, SendMessage, TelegramMethod
+from aiogram.methods import DeleteMessage, EditMessageText, GetMe, GetUpdates, SendMessage, TelegramMethod
 from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message, MessageEntity, Update, User
 
 from bot.timeutils import Clock
@@ -68,6 +69,9 @@ class FakeTelegram(BaseSession):
                            from_user=BOT_USER, text=method.text)
         if isinstance(method, GetMe):
             return BOT_USER
+        if isinstance(method, GetUpdates):
+            await asyncio.sleep(0.01)  # «довге опитування» без нових оновлень
+            return []
         return True  # answerCallbackQuery, deleteMessage, setMyCommands, deleteWebhook…
 
     # ------------------------------------------------------------------ вибірки для перевірок

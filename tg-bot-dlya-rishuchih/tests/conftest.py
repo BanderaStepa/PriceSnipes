@@ -27,6 +27,7 @@ async def make(tmp_path):
     created: list[Harness] = []
 
     async def factory(change: Callable[[dict], None] | None = None, **kwargs) -> Harness:
+        """change(raw) змінює копію content.yaml; kwargs — manager_chat_id, admin_ids, start…"""
         raw = copy.deepcopy(_RAW)
         if change is not None:
             change(raw)
