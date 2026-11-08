@@ -43,7 +43,8 @@ async def _main(settings: Settings, content: Content) -> None:
 
 
 def main() -> int:
-    load_dotenv(PROJECT_ROOT / ".env", override=False)
+    # utf-8-sig: Блокнот Windows може зберегти .env із BOM — без цього зіпсувалася б назва першої змінної
+    load_dotenv(PROJECT_ROOT / ".env", override=False, encoding="utf-8-sig")
     level = (os.environ.get("LOG_LEVEL") or "INFO").strip().upper()
     setup_logging(level if level in ("DEBUG", "INFO", "WARNING", "ERROR") else "INFO")
 
