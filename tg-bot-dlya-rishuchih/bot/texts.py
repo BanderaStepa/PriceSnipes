@@ -1,0 +1,167 @@
+"""Тексти і клавіатури для конкретного користувача в конкретний момент.
+
+Усі шаблони беруться з content.yaml. Значення, що приходять ззовні (ім'я користувача) або є звичайним
+текстом (назва і ціна пакета), екрануються перед вставкою в HTML.
+"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from .content import CHOOSE_PACKAGE, GET_PAYMENT_LINK, OTHER_PACKAGES, PAY_URL, Content, Package, Reminder
+from .htmltext import esc, fill
+from .timeutils import format_deadline, format_time_left
+
+
+def _tidy(text: str) -> str:
+    """Прибирає пробіли в кінці рядків (наприклад, коли порожня підстановка стоїть останньою)."""
+    return "\n".join(line.rstrip() for line in text.split("\n")).strip()
+
+# callback_data кнопок (до 64 байтів; id пакетів — до 32 символів)
+CB_PACKAGES = "packages"
+CB_PACKAGE = "pkg:"
+CB_PAY = "pay:"
+
+
+class Person(Protocol):
+    """Мінімум даних про користувача для текстів (storage.UserRecord цьому відповідає)."""
+
+    user_id: int
+    first_name: str
+    username: str | None
+    deadline_at: int
+
+
+class Texts:
+    def __init__(self, content: Content) -> None:
+        self.content = content
+        self.settings = content.settings
+
+    # ------------------------------------------------------------------ стан пропозиції
+
+    @staticmethod
+    def is_expired(user: Person, now: int) -> bool:
+        return now >= user.deadline_at
+
+    def packages_open(self, user: Person, now: int) -> bool:
+        """Чи можна зараз показувати пакети й посилання на оплату."""
+        return not self.is_expired(user, now) or self.settings.packages_after_expiry
+
+    def time_left(self, user: Person, now: int) -> str:
+        return format_time_left(user.deadline_at - now, self.settings.time_left_format)
+
+    def deadline(self, user: Person) -> str:
+        return format_deadline(user.deadline_at, self.settings.timezone, self.settings.deadline_format)
+
+    # ------------------------------------------------------------------ тексти
+
+    def _common(self, user: Person, now: int) -> dict[str, str]:
+        return {
+            "first_name": esc(user.first_name),
+            "time_left": esc(self.time_left(user, now)),
+            "deadline": esc(self.deadline(user)),
+        }
+
+    def _package_values(self, package: Package, user: Person, now: int) -> dict[str, str]:
+        expired = self.is_expired(user, now)
+        values = self._common(user, now)
+        values.update(
+            name=esc(package.name),
+            price=esc(package.price_for(expired)),
+            payment_url=esc(package.url_for(expired)),
+        )
+        return values
+
+    def timer_line(self, user: Person, now: int) -> str:
+        key = "timer_expired" if self.is_expired(user, now) else "timer"
+        return _tidy(fill(self.content.messages[key], self._common(user, now)))
+
+    def offer(self, user: Person, now: int) -> str:
+        values = self._common(user, now)
+        values["timer"] = self.timer_line(user, now)
+        return _tidy(fill(self.content.messages["offer"], values))
+
+    def packages_list(self, user: Person, now: int) -> str:
+        expired = self.is_expired(user, now)
+        lines = [
+            fill(
+                self.content.messages["package_line"],
+                {"number": str(number), "name": esc(package.name), "price": esc(package.price_for(expired))},
+            )
+            for number, package in enumerate(self.content.packages, start=1)
+        ]
+        values = self._common(user, now)
+        values["packages"] = "\n".join(lines)
+        return _tidy(fill(self.content.messages["packages_list"], values))
+
+    def package_description(self, package: Package, user: Person, now: int) -> str:
+        return _tidy(fill(package.description, self._package_values(package, user, now)))
+
+    def payment(self, package: Package, user: Person, now: int) -> str:
+        return _tidy(fill(self.content.messages["payment"], self._package_values(package, user, now)))
+
+    def expired(self, user: Person, now: int) -> str:
+        return _tidy(fill(self.content.messages["expired"], self._common(user, now)))
+
+    def expired_notice(self, user: Person, now: int) -> str:
+        return _tidy(fill(self.content.messages["expired_notice"], self._common(user, now)))
+
+    def fallback(self, user: Person, now: int) -> str:
+        """Відповідь на довільне повідомлення ("" — не відповідати)."""
+        return _tidy(fill(self.content.messages["fallback"], self._common(user, now)))
+
+    def reminder(self, reminder: Reminder, user: Person, now: int) -> str:
+        return _tidy(fill(reminder.text, self._common(user, now)))
+
+    def package_unavailable(self) -> str:
+        return self.content.messages["package_unavailable"]
+
+    def manager_payment_request(self, package: Package, user: Person, now: int) -> str:
+        expired = self.is_expired(user, now)
+        values = self._common(user, now)
+        name = user.first_name or "Користувач"
+        values.update(
+            user=f'<a href="tg://user?id={int(user.user_id)}">{esc(name)}</a>',
+            username=esc(f"@{user.username}") if user.username else "",
+            user_id=str(int(user.user_id)),
+            package=esc(package.name),
+            price=esc(package.price_for(expired)),
+        )
+        return _tidy(fill(self.content.messages["manager_payment_request"], values))
+
+    # ------------------------------------------------------------------ клавіатури
+
+    def keyboard(self, name: str, user: Person, now: int, package: Package | None = None) -> InlineKeyboardMarkup | None:
+        """Клавіатура з keyboards.<name>. Коли пакети недоступні (після дедлайну), кнопок немає."""
+        if not self.packages_open(user, now):
+            return None
+        expired = self.is_expired(user, now)
+        buttons_text = self.content.buttons
+        rows: list[list[InlineKeyboardButton]] = []
+        for row in self.content.keyboards[name]:
+            buttons: list[InlineKeyboardButton] = []
+            for button_id in row:
+                if button_id in (CHOOSE_PACKAGE, OTHER_PACKAGES):
+                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PACKAGES))
+                elif button_id == GET_PAYMENT_LINK and package is not None:
+                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PAY + package.id))
+                elif button_id == PAY_URL and package is not None:
+                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=package.url_for(expired)))
+            if buttons:
+                rows.append(buttons)
+        return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+    def packages_keyboard(self, user: Person, now: int) -> InlineKeyboardMarkup:
+        """Кнопки пакетів у порядку з content.yaml: «назва — ціна»."""
+        expired = self.is_expired(user, now)
+        buttons = [
+            InlineKeyboardButton(
+                text=fill(self.content.buttons["package"], {"name": package.name, "price": package.price_for(expired)}),
+                callback_data=CB_PACKAGE + package.id,
+            )
+            for package in self.content.packages
+        ]
+        per_row = self.settings.packages_per_row
+        return InlineKeyboardMarkup(inline_keyboard=[buttons[i : i + per_row] for i in range(0, len(buttons), per_row)])
