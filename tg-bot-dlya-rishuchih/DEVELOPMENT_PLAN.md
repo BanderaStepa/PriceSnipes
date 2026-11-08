@@ -63,11 +63,12 @@
 - [x] Сповіщення менеджера, `/stats` для адміністраторів, `/myid`.
 - [x] `scripts/e2e_restart_check.py`.
 
-### Етап 7 — Хостинг
-- [ ] `Dockerfile` з перевіркою `content.yaml` під час збірки.
-- [ ] `docker-compose.yml` для VPS.
-- [ ] `DEPLOY.md`: покроково Railway (GitHub → сервіс → змінні → Volume → перевірка), редагування контенту, логи, резервні копії, типові проблеми; варіант Б — VPS.
-- [ ] `.github/workflows/tests.yml` (запрацює, якщо папка стане окремим репозиторієм).
+### Етап 7 — Хостинг ✅
+- [x] `Dockerfile` з перевіркою `content.yaml` під час збірки.
+- [x] `docker-compose.yml` для VPS.
+- [x] `DEPLOY.md`: покроково Railway (GitHub → сервіс → змінні → Volume → перевірка), редагування контенту, логи, резервні копії, типові проблеми; варіант Б — VPS.
+- [x] `.github/workflows/tests.yml` (запрацює, якщо папка стане окремим репозиторієм).
+- [x] E2E у Docker: `python scripts/e2e_restart_check.py --docker rishuchi-bot`.
 
 ### Етап 8 — Фінал
 - [ ] Звірка з ТЗ по пунктах.

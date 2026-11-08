@@ -1,0 +1,19 @@
+# Автоматична перевірка на GitHub: content.yaml + усі тести.
+# Запрацює, коли ця папка стане окремим репозиторієм (GitHub читає .github/ лише з кореня репозиторію).
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m bot.check_content
+      - run: python -m pytest

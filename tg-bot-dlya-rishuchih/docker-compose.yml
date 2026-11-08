@@ -1,0 +1,23 @@
+# Запуск на VPS (варіант Б у DEPLOY.md):
+#   cp .env.example .env      # і впишіть BOT_TOKEN
+#   docker compose up -d --build
+# Логи: docker compose logs -f     Оновлення: git pull && docker compose up -d --build
+# УВАГА: «docker compose down -v» видаляє том з базою даних — не використовуйте -v.
+services:
+  bot:
+    build: .
+    restart: unless-stopped        # піднімається сам після збою і після перезавантаження сервера
+    env_file: .env
+    environment:
+      DB_PATH: /data/bot.db        # база на постійному томі bot-data
+    volumes:
+      - bot-data:/data
+    stop_grace_period: 20s         # час на коректну зупинку
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-data:

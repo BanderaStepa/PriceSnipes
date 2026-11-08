@@ -1,0 +1,16 @@
+# У образ потрапляють лише requirements.txt, bot/ і content.yaml (див. Dockerfile).
+.env
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+data
+*.db
+*.db-wal
+*.db-shm
+dist
+tests
+scripts
