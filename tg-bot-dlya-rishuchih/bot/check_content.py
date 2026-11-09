@@ -60,7 +60,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\nПакети ({len(content.packages)}):")
     for number, package in enumerate(content.packages, start=1):
-        print(f"  {number}. {package.name} — {package.price}  →  {package.payment_url}")
+        link = package.payment_url or "без посилання на оплату"
+        print(f"  {number}. {package.name} — {package.price}  →  {link}")
+    if not any(p.payment_url for p in content.packages):
+        print("  Режим: інформаційний — посилань на оплату немає, кнопки оплати не показуються.")
 
     print(f"\nНагадування ({len(content.reminders)}):")
     for reminder in content.reminders:

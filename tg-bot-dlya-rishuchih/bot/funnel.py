@@ -124,6 +124,11 @@ class Funnel:
         if package is None:
             await self._send(user, self.texts.packages_list(user, now), self.texts.packages_keyboard(user, now))
             return
+        if not package.url_for(self.texts.is_expired(user, now)):  # оплату для пакета ще не налаштовано
+            await self._send(
+                user, self.texts.package_description(package, user, now), self.texts.keyboard("package", user, now, package)
+            )
+            return
         await self.storage.add_event(user.user_id, EVENT_PAYMENT_LINK, now=now, package_id=package.id)
         log.info("Користувач %s отримав посилання на оплату пакета %s", user.user_id, package.id)
         await self._send(user, self.texts.payment(package, user, now), self.texts.keyboard("payment", user, now, package))

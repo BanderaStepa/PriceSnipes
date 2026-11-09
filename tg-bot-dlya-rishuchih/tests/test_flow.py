@@ -221,3 +221,24 @@ async def test_two_users_have_independent_timers(harness):
     first, second = await harness.storage.get_user(1), await harness.storage.get_user(2)
     assert first.deadline_at == T0 + DAY
     assert second.deadline_at == T0 + 3 * 3600 + DAY
+
+
+async def test_informational_bot_without_payment_links(make):
+    def no_links(raw):
+        for package in raw["packages"]:
+            del package["payment_url"]
+
+    harness = await make(no_links, manager_chat_id=MANAGER)
+    await harness.send("/start")
+    harness.telegram.clear()
+    await harness.press("pkg:vip")
+    [details] = harness.telegram.sent(1)
+    assert details.text.startswith("<b>Пакет «VIP» — 7 990 грн</b>")
+    assert keyboard_of(details.reply_markup) == [[("Подивитися інші пакети", "packages")]]  # без кнопки оплати
+
+    harness.telegram.clear()
+    await harness.press("pay:vip")  # стара кнопка «оплатити» з часів, коли посилання було
+    [again] = harness.telegram.sent()  # лише користувачу: менеджера не сповіщаємо, оплати ж немає
+    assert again.chat_id == 1 and again.text.startswith("<b>Пакет «VIP»")
+    assert "Оплата пакета" not in again.text
+    assert (await harness.storage.stats(harness.clock.now())).payment_links == {}

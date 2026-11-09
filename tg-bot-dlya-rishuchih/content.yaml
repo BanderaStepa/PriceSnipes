@@ -98,7 +98,7 @@ messages:
 
     📅 <b>Формат курсу</b>
 
-    ▪️23 уроків онлайн + персональна Q&A-сесія
+    ▪️23 уроки онлайн + персональна Q&A-сесія
     ▪️Доступ до матеріалів — 1 рік
     ▪️Готові шаблони та чеклісти
 
@@ -169,7 +169,8 @@ messages:
   # Один рядок переліку {packages}. Підстановки: {number} {name} {price}
   package_line: "{number}. <b>{name}</b> — {price}"
 
-  # Повідомлення з посиланням на оплату. Підстановки: {name} {price} {payment_url}
+  # Повідомлення з посиланням на оплату (показується лише для пакетів, у яких є payment_url).
+  # Підстановки: {name} {price} {payment_url}
   payment: |
     <b>Оплата пакета {name}</b> — {price}
 
@@ -183,20 +184,14 @@ messages:
   expired: |
     ⌛️ Пропозиція для рішучих уже завершилась.
 
-    ✏️ <i>Якщо хочете долучитися до курсу — напишіть менеджеру: @manager</i>
-
   # Окреме повідомлення в момент завершення (лише якщо settings.send_expired_notice: true).
   expired_notice: |
     ⌛️ {first_name}, пропозиція для рішучих завершилась.
 
-    ✏️ <i>Якщо хочете долучитися до курсу — напишіть менеджеру: @manager</i>
-
   # Відповідь на будь-яке інше повідомлення від користувача ("" — не відповідати).
   fallback: |
     Я автоматичний помічник і не читаю повідомлення 🙂
-    Щоб обрати пакет, натисніть кнопку нижче.
-
-    ✏️ <i>З питаннями пишіть менеджеру: @manager</i>
+    Щоб переглянути пакети, натисніть кнопку нижче.
 
   # Коротке спливаюче повідомлення, якщо натиснули кнопку пакета, якого вже немає
   # (звичайний текст, до 200 символів).
@@ -256,14 +251,15 @@ keyboards:
 #   name        — назва (звичайний текст, без HTML)
 #   price       — ціна так, як її показувати («2 990 грн»)
 #   description — розширений опис (HTML). Підстановки: {name} {price} {time_left} {deadline} {first_name}
-#   payment_url — посилання на оплату саме цього пакета (https://…)
+#   payment_url — посилання на оплату саме цього пакета (https://…). Необов'язкове:
+#                 без нього пакет інформаційний — кнопок оплати під описом немає.
+#                 Додасте посилання — кнопка «Отримати посилання на оплату» з'явиться сама.
 #   Необов'язково, лише для settings.packages_after_expiry: true —
 #   price_after_expiry і payment_url_after_expiry: ціна і посилання після завершення пропозиції.
 packages:
   - id: start
     name: "⚡️ START"
     price: "3 900 грн"
-    payment_url: "https://example.com/pay/start"
     description: |
       <b>{name} — {price}</b>
 
@@ -282,7 +278,6 @@ packages:
   - id: standard
     name: "🚀 STANDARD"
     price: "5 500 грн"
-    payment_url: "https://example.com/pay/standard"
     description: |
       <b>{name} — {price}</b>
 
@@ -302,7 +297,6 @@ packages:
   - id: automation
     name: "⚙️ AUTOMATION"
     price: "7 700 грн"
-    payment_url: "https://example.com/pay/automation"
     description: |
       <b>{name} — {price}</b>
 
@@ -320,7 +314,6 @@ packages:
   - id: pro
     name: "💳 PRO"
     price: "9 200 грн"
-    payment_url: "https://example.com/pay/pro"
     description: |
       <b>{name} — {price}</b>
 
@@ -338,7 +331,6 @@ packages:
   - id: master
     name: "👑 MASTER"
     price: "14 900 грн"
-    payment_url: "https://example.com/pay/master"
     description: |
       <b>{name} — {price}</b>
 

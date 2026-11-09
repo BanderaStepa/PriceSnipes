@@ -148,3 +148,12 @@ def test_custom_time_format(raw_content):
     raw_content["settings"]["deadline_format"] = "{date} о {time}"
     texts = Texts(parse_content(raw_content))
     assert texts.timer_line(User(), START + 65) == "⏳ Залишилось: <b>23:59</b> (до 09.11 о 14:35)"
+
+
+def test_informational_package_has_no_payment_buttons(raw_content):
+    for package in raw_content["packages"]:
+        del package["payment_url"]
+    texts = Texts(parse_content(raw_content))
+    vip = texts.content.package("vip")
+    assert buttons(texts.keyboard("package", User(), START, vip)) == [[("Подивитися інші пакети", CB_PACKAGES)]]
+    assert buttons(texts.keyboard("payment", User(), START, vip)) == [[("Подивитися інші пакети", CB_PACKAGES)]]

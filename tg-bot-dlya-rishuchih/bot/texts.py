@@ -70,7 +70,7 @@ class Texts:
         values.update(
             name=esc(package.name),
             price=esc(package.price_for(expired)),
-            payment_url=esc(package.url_for(expired)),
+            payment_url=esc(package.url_for(expired) or ""),
         )
         return values
 
@@ -134,7 +134,10 @@ class Texts:
     # ------------------------------------------------------------------ клавіатури
 
     def keyboard(self, name: str, user: Person, now: int, package: Package | None = None) -> InlineKeyboardMarkup | None:
-        """Клавіатура з keyboards.<name>. Коли пакети недоступні (після дедлайну), кнопок немає."""
+        """Клавіатура з keyboards.<name>. Коли пакети недоступні (після дедлайну), кнопок немає.
+
+        Кнопки оплати показуються лише для пакета з посиланням на оплату (інформаційний пакет — без них).
+        """
         if not self.packages_open(user, now):
             return None
         expired = self.is_expired(user, now)
@@ -145,10 +148,10 @@ class Texts:
             for button_id in row:
                 if button_id in (CHOOSE_PACKAGE, OTHER_PACKAGES):
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PACKAGES))
-                elif button_id == GET_PAYMENT_LINK and package is not None:
+                elif button_id == GET_PAYMENT_LINK and package is not None and package.url_for(expired):
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PAY + package.id))
-                elif button_id == PAY_URL and package is not None:
-                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=package.url_for(expired)))
+                elif button_id == PAY_URL and package is not None and (url := package.url_for(expired)):
+                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=url))
             if buttons:
                 rows.append(buttons)
         return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None

@@ -120,14 +120,15 @@ class Package:
     name: str
     price: str
     description: str
-    payment_url: str
+    payment_url: str | None = None  # None — інформаційний пакет: кнопок оплати немає
     price_after_expiry: str | None = None
     payment_url_after_expiry: str | None = None
 
     def price_for(self, expired: bool) -> str:
         return self.price_after_expiry if expired and self.price_after_expiry else self.price
 
-    def url_for(self, expired: bool) -> str:
+    def url_for(self, expired: bool) -> str | None:
+        """Посилання на оплату зараз або None, якщо оплата для пакета не налаштована."""
         return self.payment_url_after_expiry if expired and self.payment_url_after_expiry else self.payment_url
 
 
@@ -496,7 +497,7 @@ class _Checker:
         for i, item in enumerate(raw, start=1):
             path = f"packages[{i}]"
             if not isinstance(item, dict):
-                self.error(path, "пакет має бути розділом з полями id, name, price, description, payment_url")
+                self.error(path, "пакет має бути розділом з полями id, name, price, description (і payment_url)")
                 continue
             package_id = self.item_id(path, item.get("id"), seen)
             if package_id:
@@ -505,10 +506,10 @@ class _Checker:
             name = self.plain(f"{path}.name", item.get("name"))
             price = self.plain(f"{path}.price", item.get("price"))
             description = self.html(f"{path}.description", item.get("description"), PACKAGE_PLACEHOLDERS)
-            payment_url = self.url(f"{path}.payment_url", item.get("payment_url"))
+            payment_url = self.url(f"{path}.payment_url", item.get("payment_url"), required=False)
             price_after = self.plain(f"{path}.price_after_expiry", item.get("price_after_expiry"), required=False)
             url_after = self.url(f"{path}.payment_url_after_expiry", item.get("payment_url_after_expiry"), required=False)
-            if None in (package_id, name, price, description, payment_url):
+            if None in (package_id, name, price, description):
                 continue
             result.append(
                 Package(
@@ -583,6 +584,12 @@ def parse_content(raw: Any, source: str = "content.yaml") -> Content:
     packages = c.packages(raw.get("packages"))
     reminders = c.reminders(raw.get("reminders"), settings.offer_duration if settings else None)
 
+    with_links = [p for p in packages if p.payment_url]
+    if with_links and len(with_links) < len(packages):
+        for p in packages:
+            if not p.payment_url:
+                c.warn(f"packages ({p.id}).payment_url", "посилання на оплату не вказано — для цього пакета не буде кнопки "
+                                                        "оплати (якщо так і задумано, ігноруйте)")
     if settings is not None and settings.packages_after_expiry:
         if not any(b in PACKAGE_BUTTONS for row in keyboards.get("expired", ()) for b in row):
             c.warn("keyboards.expired", "пакети доступні й після завершення (packages_after_expiry: true), але під "

@@ -323,3 +323,28 @@ def test_check_content_cli(tmp_path, capsys):
     broken.write_text("settings: {}\n", encoding="utf-8")
     assert check_content.main([str(broken)]) == 1
     assert "ПОМИЛКА" in capsys.readouterr().out
+
+
+# ----------------------------------------------------------------------------- інформаційні пакети (без оплати)
+
+
+def test_packages_without_payment_links_are_informational(raw_content, tmp_path, capsys):
+    for package in raw_content["packages"]:
+        del package["payment_url"]
+    content = parse_content(raw_content)
+    assert all(p.payment_url is None and p.url_for(False) is None for p in content.packages)
+    assert not [w for w in content.warnings if "payment_url" in w]  # усі без посилань — так задумано, без попереджень
+
+    path = tmp_path / "content.yaml"
+    import yaml
+
+    path.write_text(yaml.safe_dump(raw_content, allow_unicode=True), encoding="utf-8")
+    assert check_content.main([str(path)]) == 0
+    assert "Режим: інформаційний" in capsys.readouterr().out
+
+
+def test_mixed_payment_links_warn_about_missing_ones(raw_content):
+    del raw_content["packages"][1]["payment_url"]
+    content = parse_content(raw_content)
+    assert content.package("optimal").payment_url is None
+    assert any(w.startswith("packages (optimal).payment_url: посилання на оплату не вказано") for w in content.warnings)
