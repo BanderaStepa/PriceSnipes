@@ -69,17 +69,27 @@ class Funnel:
             await self._send_expired(user, now)
             return
 
-        text = self.texts.offer(user, now)
+        body_id: int | None = None
+        if self.texts.separate_timer:
+            # Текст оферу окремо: його ніколи не редагуємо (шторки й спойлери не згортаються),
+            # а таймер і кнопка — короткими повідомленням під ним.
+            body = await self._send(user, self.texts.offer(user, now))
+            if not body.ok or body.message_id is None:
+                return
+            body_id = body.message_id
+            text = self.texts.offer_timer(user, now)
+        else:
+            text = self.texts.offer(user, now)
         result = await self._send(user, text, self.texts.keyboard("offer", user, now))
         if not result.ok or result.message_id is None:
             return
-        previous = user.offer_message_id
-        await self.storage.set_offer_message(user.user_id, result.message_id)
+        await self.storage.set_offer_message(user.user_id, result.message_id, body_id)
         self.timer_cache[(user.user_id, result.message_id)] = (text, now)
-        if previous and previous != result.message_id:
-            # У чаті лишається один офер із живим таймером — попередній прибираємо.
-            self.timer_cache.pop((user.user_id, previous), None)
-            await self.sender.delete(user.chat_id, previous)
+        # У чаті лишається один офер із живим таймером — попередній (обидва його повідомлення) прибираємо.
+        for old in (user.offer_message_id, user.offer_body_message_id):
+            if old and old not in (result.message_id, body_id):
+                self.timer_cache.pop((user.user_id, old), None)
+                await self.sender.delete(user.chat_id, old)
 
     async def show_packages(self, profile: Profile) -> None:
         """«Обрати пакет» / «Подивитися інші пакети»."""
@@ -175,7 +185,7 @@ class Funnel:
         if not every or user.offer_message_id is None:
             return None
         key = (user.user_id, user.offer_message_id)
-        text = self.texts.offer(user, now)
+        text = self.texts.live_offer(user, now, has_body=user.offer_body_message_id is not None)
         cached = self.timer_cache.get(key)
         if cached is not None and (cached[0] == text or now - cached[1] < every):
             return None
@@ -197,7 +207,7 @@ class Funnel:
             result = await self.sender.edit(
                 user.chat_id,
                 user.offer_message_id,
-                self.texts.offer(user, now),
+                self.texts.live_offer(user, now, has_body=user.offer_body_message_id is not None),
                 self.texts.keyboard("offer", user, now),
                 background=True,
             )

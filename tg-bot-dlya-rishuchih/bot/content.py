@@ -61,6 +61,8 @@ PACKAGE_PLACEHOLDERS = COMMON_PLACEHOLDERS | {"name", "price", "payment_url"}
 # Повідомлення (Telegram-HTML): назва → (обов'язкове, дозволені підстановки, значення за замовчуванням)
 MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     "offer": (True, COMMON_PLACEHOLDERS | {"timer"}, None),
+    # Окреме повідомлення з таймером під офером ("" — таймер у самому офері через {timer}).
+    "offer_timer": (False, COMMON_PLACEHOLDERS | {"timer"}, ""),
     "timer": (True, frozenset({"time_left", "deadline"}), None),
     "timer_expired": (True, frozenset({"deadline"}), None),
     "packages_list": (True, COMMON_PLACEHOLDERS | {"packages"}, None),
@@ -77,7 +79,7 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     ),
 }
 # Повідомлення, які можуть бути порожніми ("" = не надсилати).
-OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback"})
+OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer"})
 # Звичайний текст (без HTML): назва → значення за замовчуванням
 PLAIN_MESSAGES: dict[str, str] = {
     "package_unavailable": "Цей пакет більше недоступний. Оберіть інший 👇",
@@ -419,7 +421,14 @@ class _Checker:
             if text is not None:
                 result[key] = text
         offer = result.get("offer")
-        if offer is not None and "timer" not in placeholders(offer):
+        offer_timer = result.get("offer_timer", "")
+        if offer_timer:
+            if "timer" not in placeholders(offer_timer):
+                self.warn("messages.offer_timer", "немає підстановки {timer} — таймер не буде показано")
+            if offer is not None and "timer" in placeholders(offer):
+                self.warn("messages.offer", "таймер показується окремим повідомленням (offer_timer), тож {timer} "
+                                            "в офері не оновлюватиметься — приберіть його звідси")
+        elif offer is not None and "timer" not in placeholders(offer):
             self.warn("messages.offer", "немає підстановки {timer} — таймер в офері не буде показано")
         return result
 

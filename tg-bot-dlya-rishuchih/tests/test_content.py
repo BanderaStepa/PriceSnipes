@@ -26,7 +26,8 @@ def test_project_content_yaml_is_valid():
     """Справжній content.yaml (тексти замовника) завантажується без помилок — як під час збірки на хостингу."""
     content = load_content(DEFAULT_CONTENT_PATH)
     assert content.packages
-    assert "{timer}" in content.messages["offer"]
+    # таймер показується або в самому офері, або окремим повідомленням під ним
+    assert "{timer}" in content.messages["offer"] or "{timer}" in content.messages["offer_timer"]
 
 
 def test_reference_content_file():

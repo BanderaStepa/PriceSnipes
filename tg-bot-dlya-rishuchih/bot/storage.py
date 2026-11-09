@@ -15,7 +15,7 @@ import aiosqlite
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Міграції: версія → SQL. Нові зміни схеми додаються новою версією, старі не редагуються.
 _MIGRATIONS: dict[int, str] = {
@@ -53,6 +53,10 @@ _MIGRATIONS: dict[int, str] = {
             at         INTEGER NOT NULL
         );
         CREATE INDEX idx_events_kind ON events (kind, package_id);
+    """,
+    # v2: офер може складатися з двох повідомлень — текст (не редагується) і таймер (оновлюється щохвилини).
+    2: """
+        ALTER TABLE users ADD COLUMN offer_body_message_id INTEGER;
     """,
 }
 
@@ -92,10 +96,11 @@ class UserRecord:
     source: str | None
     started_at: int
     deadline_at: int
-    offer_message_id: int | None
+    offer_message_id: int | None  # повідомлення з живим таймером (його редагує планувальник)
     expiry_done: bool
     blocked_at: int | None
     last_seen_at: int
+    offer_body_message_id: int | None = None  # текст оферу, якщо таймер в окремому повідомленні
 
     @property
     def is_blocked(self) -> bool:
@@ -134,6 +139,7 @@ def _user(row: aiosqlite.Row) -> UserRecord:
         expiry_done=bool(row["expiry_done"]),
         blocked_at=row["blocked_at"],
         last_seen_at=row["last_seen_at"],
+        offer_body_message_id=row["offer_body_message_id"],
     )
 
 
@@ -228,8 +234,12 @@ class Storage:
         users = await self._users("SELECT * FROM users WHERE user_id = ?", (user_id,))
         return users[0] if users else None
 
-    async def set_offer_message(self, user_id: int, message_id: int) -> None:
-        await self._conn.execute("UPDATE users SET offer_message_id = ? WHERE user_id = ?", (message_id, user_id))
+    async def set_offer_message(self, user_id: int, message_id: int, body_message_id: int | None = None) -> None:
+        """Запам'ятовує повідомлення з живим таймером (і окреме повідомлення з текстом оферу, якщо є)."""
+        await self._conn.execute(
+            "UPDATE users SET offer_message_id = ?, offer_body_message_id = ? WHERE user_id = ?",
+            (message_id, body_message_id, user_id),
+        )
 
     async def clear_offer_message(self, user_id: int, message_id: int) -> None:
         """Забуває повідомлення з офером (лише якщо це те саме повідомлення — новіше не чіпаємо)."""

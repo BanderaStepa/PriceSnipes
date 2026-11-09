@@ -83,6 +83,29 @@ class Texts:
         values["timer"] = self.timer_line(user, now)
         return _tidy(fill(self.content.messages["offer"], values))
 
+    @property
+    def separate_timer(self) -> bool:
+        """Таймер — окремим повідомленням під офером (messages.offer_timer задано)."""
+        return bool(self.content.messages.get("offer_timer"))
+
+    def offer_timer(self, user: Person, now: int) -> str:
+        values = self._common(user, now)
+        values["timer"] = self.timer_line(user, now)
+        return _tidy(fill(self.content.messages["offer_timer"], values))
+
+    def live_offer(self, user: Person, now: int, *, has_body: bool) -> str:
+        """Текст повідомлення з живим таймером.
+
+        has_body — офер цього користувача надіслано двома повідомленнями (текст окремо, таймер окремо).
+        Якщо офер колись надіслано одним повідомленням, а тепер таймер окремий, — оновлюємо те одне
+        повідомлення повністю: текст оферу + таймер (щоб не затерти текст).
+        """
+        if has_body:
+            return self.offer_timer(user, now)
+        if self.separate_timer:
+            return self.offer(user, now) + "\n\n" + self.offer_timer(user, now)
+        return self.offer(user, now)
+
     def packages_list(self, user: Person, now: int) -> str:
         expired = self.is_expired(user, now)
         lines = [
