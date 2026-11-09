@@ -20,16 +20,17 @@
 - **Windows:** `*.bat` — лише ASCII і CRLF (`.gitattributes`); українські повідомлення виводить Python.
   Підтримувані версії Python: 3.11–3.14 (aiogram 3.31 не підтримує 3.15).
 - **Мова:** документація, коментарі й повідомлення в логах — українською.
-- **Мережа:** хмарна сесія не має доступу до api.telegram.org. Перевіряємо тестами з фейковим Telegram
-  (`tests/fake_telegram.py`) і `scripts/e2e_restart_check.py` (локальний фейковий Bot API).
-- **Запуск для тестування з хмарної сесії** (замовник лише «командує»): середовище «PriceSnipes — Telegram bot»
-  дозволяє api.telegram.org; Telegram доступний лише через проксі пісочниці, тож запуск —
-  `python scripts/run_with_proxy.py .` у фоні (`nohup`), токен — лише у змінній `BOT_TOKEN` (файл поза репозиторієм),
-  `DB_PATH` — у scratchpad. Перед запуском — `getWebhookInfo` (не зламати чужу інтеграцію). Не запускати одночасно
-  з `start_bot.bat` на комп'ютері замовника (конфлікт polling).
-  ⚠️ Хмарну сесію призупиняють приблизно через 5 хв тиші — разом із ботом. Після пробудження перевір
-  `pgrep -f run_with_proxy.py` і `getWebhookInfo` (pending_update_count) і за потреби запусти знову.
+- **Мережа:** середовище «PriceSnipes — Telegram bot» дозволяє api.telegram.org (лише через проксі пісочниці) і
+  backboard.railway.com (API Railway; токен — секрет середовища, його підставляє проксі, у файлах його немає).
+  Перевіряємо тестами з фейковим Telegram (`tests/fake_telegram.py`) і `scripts/e2e_restart_check.py`
+  (локальний фейковий Bot API).
+- **Бот працює на Railway 24/7 (з 2026-11-09).** Проєкт `dlya-rishuchih-bot`, сервіс `bot`, регіон EU West
+  (Амстердам), Volume `/data` (база `/data/bot.db`), Restart Policy: Always, змінні `BOT_TOKEN`, `ADMIN_IDS`.
+  ⚠️ **Не запускай другу копію бота з тим самим токеном** — ні в хмарній сесії (`scripts/run_with_proxy.py`),
+  ні `start_bot.bat`, ні docker: Telegram віддає оновлення лише одній копії (409 Conflict), а дві копії дублюють
+  нагадування й таймери. Запуск поза Railway — лише після зупинки деплою на Railway і з копією бази.
+- **Оновлення на Railway:** зміни → `python -m pytest` → commit (заливається лише закомічене, git HEAD цієї папки) →
+  `python scripts/railway_deploy.py` (з цієї папки; чекає запуску і показує журнал). Помилка в `content.yaml` —
+  збірка не пройде, стара версія працює далі. Стан і журнал: `--status`, `--logs 100`. Telegram: `getWebhookInfo`
+  (url порожній, pending_update_count ≈ 0).
 - **Картинки пакетів** — у `images/` (`packages[].image`); Dockerfile їх копіює.
-- **Рішення замовника (2026-11-09): хостинг відкладено — бот працює лише під час діалогу.** На початку кожної
-  відповіді перевір, чи бот запущений (`pgrep -f scripts/run_with_proxy.py`), і за потреби запусти (див. пункт вище).
-  Натискання, зроблені поки бот спав, Telegram тримає до 24 год — бот відповість на них після запуску.
