@@ -41,19 +41,22 @@ CHOOSE_PACKAGE = "choose_package"
 OTHER_PACKAGES = "other_packages"
 GET_PAYMENT_LINK = "get_payment_link"
 PAY_URL = "pay_url"
-BUTTON_IDS = (CHOOSE_PACKAGE, OTHER_PACKAGES, GET_PAYMENT_LINK, PAY_URL)
+GIFT = "gift"  # «🎁 Що за подарунок?» — опис подарунка (messages.gift); лише поки пропозиція діє
+BUTTON_IDS = (CHOOSE_PACKAGE, OTHER_PACKAGES, GET_PAYMENT_LINK, PAY_URL, GIFT)
 # Кнопки, які ведуть до пакетів або оплати (після завершення пропозиції вони зникають,
 # якщо settings.packages_after_expiry: false).
-PACKAGE_BUTTONS = frozenset(BUTTON_IDS)
+PACKAGE_BUTTONS = frozenset({CHOOSE_PACKAGE, OTHER_PACKAGES, GET_PAYMENT_LINK, PAY_URL})
 
 _LIST_BUTTONS = frozenset({CHOOSE_PACKAGE, OTHER_PACKAGES})
+_ACTIVE = _LIST_BUTTONS | {GIFT}  # кнопки, доречні, поки пропозиція діє
 # Клавіатура → (дозволені кнопки, значення за замовчуванням)
 KEYBOARDS: dict[str, tuple[frozenset[str], tuple[tuple[str, ...], ...]]] = {
-    "offer": (_LIST_BUTTONS, ((CHOOSE_PACKAGE,),)),
-    "package": (_LIST_BUTTONS | {GET_PAYMENT_LINK}, ((GET_PAYMENT_LINK,), (OTHER_PACKAGES,))),
-    "payment": (_LIST_BUTTONS | {PAY_URL}, ((PAY_URL,), (OTHER_PACKAGES,))),
-    "reminder": (_LIST_BUTTONS, ((CHOOSE_PACKAGE,),)),
-    "fallback": (_LIST_BUTTONS, ((CHOOSE_PACKAGE,),)),
+    "offer": (_ACTIVE, ((CHOOSE_PACKAGE,),)),
+    "package": (_ACTIVE | {GET_PAYMENT_LINK}, ((GET_PAYMENT_LINK,), (OTHER_PACKAGES,))),
+    "payment": (_ACTIVE | {PAY_URL}, ((PAY_URL,), (OTHER_PACKAGES,))),
+    "reminder": (_ACTIVE, ((CHOOSE_PACKAGE,),)),
+    "fallback": (_ACTIVE, ((CHOOSE_PACKAGE,),)),
+    "gift": (_LIST_BUTTONS, ((CHOOSE_PACKAGE,),)),  # під описом подарунка
     "expired": (_LIST_BUTTONS, ()),
 }
 
@@ -75,6 +78,8 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     "expired": (True, COMMON_PLACEHOLDERS, None),
     "expired_notice": (False, COMMON_PLACEHOLDERS, "⌛️ Пропозиція для рішучих завершилась."),
     "fallback": (False, COMMON_PLACEHOLDERS, ""),
+    # Опис подарунка — відкривається кнопкою gift ("" — подарунка немає).
+    "gift": (False, COMMON_PLACEHOLDERS, ""),
     "manager_payment_request": (
         False,
         frozenset({"user", "username", "user_id", "package", "price", "time_left", "deadline"}),
@@ -83,7 +88,7 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     ),
 }
 # Повідомлення, які можуть бути порожніми ("" = не надсилати).
-OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer"})
+OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer", "gift"})
 # Звичайний текст (без HTML): назва → значення за замовчуванням
 PLAIN_MESSAGES: dict[str, str] = {
     "package_unavailable": "Цей пакет більше недоступний. Оберіть інший 👇",
@@ -95,6 +100,7 @@ BUTTON_TEXTS: dict[str, tuple[frozenset[str], str | None]] = {
     OTHER_PACKAGES: (frozenset(), None),
     GET_PAYMENT_LINK: (frozenset(), None),
     PAY_URL: (frozenset(), None),
+    GIFT: (frozenset(), "🎁 Що за подарунок?"),
     "package": (frozenset({"name", "price"}), "{name} — {price}"),
 }
 
@@ -625,6 +631,9 @@ def parse_content(raw: Any, source: str = "content.yaml") -> Content:
     packages = c.packages(raw.get("packages"))
     reminders = c.reminders(raw.get("reminders"), settings.offer_duration if settings else None)
 
+    if not messages.get("gift") and any(GIFT in row for rows in keyboards.values() for row in rows):
+        c.error("messages.gift", "кнопка gift відкриває опис подарунка, але текст gift порожній — додайте опис "
+                                 "або приберіть кнопку gift із keyboards")
     with_links = [p for p in packages if p.payment_url]
     if with_links and len(with_links) < len(packages):
         for p in packages:

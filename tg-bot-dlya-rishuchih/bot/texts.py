@@ -10,7 +10,7 @@ from typing import Protocol
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from .content import CHOOSE_PACKAGE, GET_PAYMENT_LINK, OTHER_PACKAGES, PAY_URL, Content, Package, Reminder
+from .content import CHOOSE_PACKAGE, GET_PAYMENT_LINK, GIFT, OTHER_PACKAGES, PAY_URL, Content, Package, Reminder
 from .htmltext import esc, fill
 from .timeutils import format_deadline, format_time_left
 
@@ -23,6 +23,7 @@ def _tidy(text: str) -> str:
 CB_PACKAGES = "packages"
 CB_PACKAGE = "pkg:"
 CB_PAY = "pay:"
+CB_GIFT = "gift"
 
 
 class Person(Protocol):
@@ -138,6 +139,9 @@ class Texts:
     def reminder(self, reminder: Reminder, user: Person, now: int) -> str:
         return _tidy(fill(reminder.text, self._common(user, now)))
 
+    def gift(self, user: Person, now: int) -> str:
+        return _tidy(fill(self.content.messages["gift"], self._common(user, now)))
+
     def package_unavailable(self) -> str:
         return self.content.messages["package_unavailable"]
 
@@ -175,6 +179,8 @@ class Texts:
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PAY + package.id))
                 elif button_id == PAY_URL and package is not None and (url := package.url_for(expired)):
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=url))
+                elif button_id == GIFT and not expired and self.content.messages.get("gift"):
+                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_GIFT))
             if buttons:
                 rows.append(buttons)
         return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None

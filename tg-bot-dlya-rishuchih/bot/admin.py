@@ -54,6 +54,15 @@ def create_admin_router() -> Router:
         lines.append("Це число можна вказати в MANAGER_CHAT_ID (куди слати сповіщення) або в ADMIN_IDS (доступ до /stats).")
         await funnel.sender.send(message.chat.id, "\n".join(lines), user_chat=False)
 
+    @router.message(Command("preview"), F.chat.type == ChatType.PRIVATE)
+    async def cmd_preview(message: Message, funnel: Funnel, settings: Settings) -> None:
+        if message.from_user is None:
+            return
+        if message.from_user.id not in settings.admin_ids:
+            await funnel.on_text(profile_of(message.from_user, message.chat.id))  # для інших — звичайне повідомлення
+            return
+        await funnel.send_preview(message.chat.id, message.from_user.first_name or "")
+
     @router.message(Command("stats"), F.chat.type == ChatType.PRIVATE)
     async def cmd_stats(message: Message, funnel: Funnel, settings: Settings) -> None:
         if message.from_user is None:

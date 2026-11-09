@@ -66,6 +66,7 @@ EVENT_RESTART = "restart"  # повторний /start
 EVENT_PACKAGES = "packages"  # відкрив список пакетів
 EVENT_PACKAGE = "package"  # відкрив опис пакета
 EVENT_PAYMENT_LINK = "payment_link"  # отримав посилання на оплату
+EVENT_GIFT = "gift"  # відкрив опис подарунка
 
 # Статуси в журналі нагадувань
 REMINDER_SENT = "sent"

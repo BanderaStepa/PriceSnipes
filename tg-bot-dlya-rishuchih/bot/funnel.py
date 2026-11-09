@@ -16,6 +16,7 @@ from .htmltext import strip_tags
 from .paths import project_path
 from .sender import Outcome, Result, Sender
 from .storage import (
+    EVENT_GIFT,
     EVENT_PACKAGE,
     EVENT_PACKAGES,
     EVENT_PAYMENT_LINK,
@@ -29,6 +30,16 @@ from .texts import Texts
 from .timeutils import Clock
 
 log = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _PreviewPerson:
+    """Уявний користувач для /preview: пропозиція щойно почалась."""
+
+    user_id: int
+    first_name: str
+    username: str | None
+    deadline_at: int
 
 # Повідомлення «пропозиція завершилась» надсилаємо не пізніше ніж через 2 год після дедлайну,
 # щоб після довгого простою сервера не писати людям застарілих повідомлень.
@@ -156,6 +167,39 @@ class Funnel:
         text = self.texts.fallback(user, now)
         if text:
             await self._send(user, text, self.texts.keyboard("fallback", user, now))
+
+    async def show_gift(self, profile: Profile) -> None:
+        """«🎁 Що за подарунок?» — опис подарунка; після дедлайну подарунка вже немає."""
+        user = await self._known_user(profile)
+        if user is None:
+            return
+        now = self.clock.now()
+        if user.is_expired(now) or not self.content.messages.get("gift"):
+            await self._send_expired(user, now)
+            return
+        await self.storage.add_event(user.user_id, EVENT_GIFT, now=now)
+        await self._send(user, self.texts.gift(user, now), self.texts.keyboard("gift", user, now))
+
+    async def send_preview(self, chat_id: int, first_name: str) -> None:
+        """Для адміністратора: нагадування, подарунок і завершення — так, як їх побачать люди."""
+        now = self.clock.now()
+        person = _PreviewPerson(chat_id, first_name, None, now + self.content.settings.offer_duration)
+        intro = ("👀 <b>Попередній перегляд</b>\nТак люди побачать нагадування, подарунок і завершення пропозиції. "
+                 "Залишок часу — як у момент, коли нагадування прийде.")
+        await self.sender.send(chat_id, intro, user_chat=False)
+        for reminder in self.content.reminders:
+            at = reminder.due_at(now, person.deadline_at)
+            header = f"<i>Нагадування {reminder.id} — {reminder.describe()}:</i>\n\n"
+            await self.sender.send(chat_id, header + self.texts.reminder(reminder, person, at),
+                                   self.texts.keyboard("reminder", person, at), user_chat=False)
+        if self.content.messages.get("gift"):
+            await self.sender.send(chat_id, "<i>Кнопка «🎁» — опис подарунка:</i>\n\n" + self.texts.gift(person, now),
+                                   self.texts.keyboard("gift", person, now), user_chat=False)
+        await self.sender.send(chat_id, "<i>Після завершення — у повідомленні з таймером:</i>\n\n"
+                               + self.texts.timer_line(person, person.deadline_at), user_chat=False)
+        await self.sender.send(chat_id, "<i>Після завершення — на /start і будь-яку кнопку:</i>\n\n"
+                               + self.texts.expired(person, person.deadline_at),
+                               self.texts.keyboard("expired", person, person.deadline_at), user_chat=False)
 
     def is_known_package(self, package_id: str) -> bool:
         return self.content.package(package_id) is not None
