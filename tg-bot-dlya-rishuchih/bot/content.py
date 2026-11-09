@@ -295,6 +295,10 @@ class _Checker:
             self.error(path, f"«{text}» не схоже на посилання — воно має починатися з https://")
             return None
         host = (parsed.hostname or "").lower()
+        if "." not in host.strip(".") or "…" in text or "✏" in text:
+            self.error(path, f"«{text}» схоже на заготовку, а не на справжнє посилання — вставте повне посилання "
+                             "з вашої платіжної системи")
+            return None
         if host == "example.com" or host.endswith(".example.com"):
             self.warn(path, "це посилання-заглушка (example.com) — замініть на справжнє посилання на оплату")
         return text

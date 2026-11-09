@@ -164,6 +164,20 @@ def test_package_errors(raw_content):
     assert "packages[2].description: поле відсутнє" in errors
 
 
+@pytest.mark.parametrize(
+    "url", ["https://…ваше-посилання-на-оплату-пакета-Старт…", "https://pay/start", "https://pay.ua/✏️-вставте"]
+)
+def test_template_links_are_rejected(raw_content, url):
+    raw_content["packages"][0]["payment_url"] = url
+    assert_error(raw_content, "packages[1] (start).payment_url:", "схоже на заготовку")
+
+
+@pytest.mark.parametrize("url", ["https://secure.wayforpay.com/payment/s1a2b3", "https://оплата.укр/старт?sum=2490"])
+def test_real_links_are_accepted(raw_content, url):
+    raw_content["packages"][0]["payment_url"] = url
+    assert parse_content(raw_content).packages[0].payment_url == url
+
+
 def test_no_packages(raw_content):
     raw_content["packages"] = []
     assert_error(raw_content, "packages: потрібен хоча б один пакет")
