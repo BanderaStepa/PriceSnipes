@@ -165,7 +165,6 @@ messages:
     {payment_url}
 
     Після оплати менеджер вручну відкриє вам доступ до курсу.
-    ✏️ <i>Вкажіть, куди надіслати квитанцію про оплату, наприклад: @manager</i>
 
   # Відповідь, коли пропозиція вже завершилась (на /start і на кнопки пакетів).
   expired: |
@@ -251,6 +250,7 @@ packages:
     name: "⚡️ START"
     price: "3 900 грн"
     image: "images/start.jpg"
+    payment_url: "https://secure.wayforpay.com/button/b0d339847fe31"
     description: |
       <b>{name} — {price}</b>
 
@@ -270,6 +270,7 @@ packages:
     name: "🚀 STANDARD"
     price: "5 500 грн"
     image: "images/standard.jpg"
+    payment_url: "https://secure.wayforpay.com/button/beca6c5a85f19"
     description: |
       <b>{name} — {price}</b>
 
@@ -290,6 +291,7 @@ packages:
     name: "⚙️ AUTOMATION"
     price: "7 700 грн"
     image: "images/automation.jpg"
+    payment_url: "https://secure.wayforpay.com/button/be06d4f76684c"
     description: |
       <b>{name} — {price}</b>
 
@@ -308,6 +310,7 @@ packages:
     name: "💳 PRO"
     price: "9 200 грн"
     image: "images/pro.jpg"
+    payment_url: "https://secure.wayforpay.com/button/b3da0cc78e969"
     description: |
       <b>{name} — {price}</b>
 
@@ -326,6 +329,7 @@ packages:
     name: "👑 MASTER"
     price: "14 900 грн"
     image: "images/master.jpg"
+    payment_url: "https://secure.wayforpay.com/button/b14f85a16d8b3"
     description: |
       <b>{name} — {price}</b>
 
