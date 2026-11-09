@@ -17,6 +17,7 @@ from .htmltext import strip_tags
 from .paths import project_path
 from .sender import Outcome, Result, Sender
 from .storage import (
+    EVENT_COURSE_INFO,
     EVENT_GIFT,
     EVENT_PACKAGE,
     EVENT_PACKAGES,
@@ -187,6 +188,18 @@ class Funnel:
             return
         await self.storage.add_event(user.user_id, EVENT_GIFT, now=now)
         await self._send(user, self.texts.gift(user, now), self.texts.keyboard("gift", user, now))
+
+    async def show_course_info(self, profile: Profile) -> None:
+        """«📖 Інформація про курс» — ще раз опис курсу (текст оферу), щоб не гортати чат угору."""
+        user = await self._known_user(profile)
+        if user is None:
+            return
+        now = self.clock.now()
+        if not self.texts.packages_open(user, now):
+            await self._send_expired(user, now)
+            return
+        await self.storage.add_event(user.user_id, EVENT_COURSE_INFO, now=now)
+        await self._send(user, self.texts.course_info(user, now), self.texts.keyboard("course_info", user, now))
 
     async def send_preview(self, chat_id: int, first_name: str) -> None:
         """Для адміністратора: нагадування, подарунок і завершення — так, як їх побачать люди."""

@@ -67,6 +67,7 @@ EVENT_PACKAGES = "packages"  # відкрив список пакетів
 EVENT_PACKAGE = "package"  # відкрив опис пакета
 EVENT_PAYMENT_LINK = "payment_link"  # отримав посилання на оплату
 EVENT_GIFT = "gift"  # відкрив опис подарунка
+EVENT_COURSE_INFO = "course_info"  # ще раз відкрив інформацію про курс
 
 # Статуси в журналі нагадувань
 REMINDER_SENT = "sent"

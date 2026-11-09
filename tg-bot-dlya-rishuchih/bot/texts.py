@@ -10,7 +10,17 @@ from typing import Protocol
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from .content import CHOOSE_PACKAGE, GET_PAYMENT_LINK, GIFT, OTHER_PACKAGES, PAY_URL, Content, Package, Reminder
+from .content import (
+    CHOOSE_PACKAGE,
+    COURSE_INFO,
+    GET_PAYMENT_LINK,
+    GIFT,
+    OTHER_PACKAGES,
+    PAY_URL,
+    Content,
+    Package,
+    Reminder,
+)
 from .htmltext import esc, fill
 from .timeutils import format_countdown, format_deadline, format_progress, format_time_left
 
@@ -24,6 +34,7 @@ CB_PACKAGES = "packages"
 CB_PACKAGE = "pkg:"
 CB_PAY = "pay:"
 CB_GIFT = "gift"
+CB_COURSE = "course"
 
 
 class Person(Protocol):
@@ -153,6 +164,13 @@ class Texts:
     def gift(self, user: Person, now: int) -> str:
         return _tidy(fill(self.content.messages["gift"], self._common(user, now)))
 
+    def course_info(self, user: Person, now: int) -> str:
+        """«📖 Інформація про курс»: messages.course_info, а якщо він порожній — ще раз текст оферу."""
+        template = self.content.messages.get("course_info")
+        if template:
+            return _tidy(fill(template, self._common(user, now)))
+        return self.offer(user, now)
+
     def package_unavailable(self) -> str:
         return self.content.messages["package_unavailable"]
 
@@ -192,12 +210,14 @@ class Texts:
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=url))
                 elif button_id == GIFT and not expired and self.content.messages.get("gift"):
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_GIFT))
+                elif button_id == COURSE_INFO:
+                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_COURSE))
             if buttons:
                 rows.append(buttons)
         return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
     def packages_keyboard(self, user: Person, now: int) -> InlineKeyboardMarkup:
-        """Кнопки пакетів у порядку з content.yaml: «назва — ціна»."""
+        """Кнопки пакетів у порядку з content.yaml: «назва — ціна»; під ними — ряди з keyboards.packages_list."""
         expired = self.is_expired(user, now)
         buttons = [
             InlineKeyboardButton(
@@ -207,4 +227,8 @@ class Texts:
             for package in self.content.packages
         ]
         per_row = self.settings.packages_per_row
-        return InlineKeyboardMarkup(inline_keyboard=[buttons[i : i + per_row] for i in range(0, len(buttons), per_row)])
+        rows = [buttons[i : i + per_row] for i in range(0, len(buttons), per_row)]
+        extra = self.keyboard("packages_list", user, now)
+        if extra is not None:
+            rows += extra.inline_keyboard
+        return InlineKeyboardMarkup(inline_keyboard=rows)

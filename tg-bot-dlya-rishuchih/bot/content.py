@@ -47,13 +47,14 @@ OTHER_PACKAGES = "other_packages"
 GET_PAYMENT_LINK = "get_payment_link"
 PAY_URL = "pay_url"
 GIFT = "gift"  # «🎁 Що за подарунок?» — опис подарунка (messages.gift); лише поки пропозиція діє
-BUTTON_IDS = (CHOOSE_PACKAGE, OTHER_PACKAGES, GET_PAYMENT_LINK, PAY_URL, GIFT)
+COURSE_INFO = "course_info"  # «📖 Інформація про курс» — ще раз надіслати опис курсу (messages.course_info або офер)
+BUTTON_IDS = (CHOOSE_PACKAGE, OTHER_PACKAGES, GET_PAYMENT_LINK, PAY_URL, GIFT, COURSE_INFO)
 # Кнопки, які ведуть до пакетів або оплати (після завершення пропозиції вони зникають,
 # якщо settings.packages_after_expiry: false).
 PACKAGE_BUTTONS = frozenset({CHOOSE_PACKAGE, OTHER_PACKAGES, GET_PAYMENT_LINK, PAY_URL})
 
 _LIST_BUTTONS = frozenset({CHOOSE_PACKAGE, OTHER_PACKAGES})
-_ACTIVE = _LIST_BUTTONS | {GIFT}  # кнопки, доречні, поки пропозиція діє
+_ACTIVE = _LIST_BUTTONS | {GIFT, COURSE_INFO}  # кнопки, доречні, поки пропозиція діє
 # Клавіатура → (дозволені кнопки, значення за замовчуванням)
 KEYBOARDS: dict[str, tuple[frozenset[str], tuple[tuple[str, ...], ...]]] = {
     "offer": (_ACTIVE, ((CHOOSE_PACKAGE,),)),
@@ -61,8 +62,11 @@ KEYBOARDS: dict[str, tuple[frozenset[str], tuple[tuple[str, ...], ...]]] = {
     "payment": (_ACTIVE | {PAY_URL}, ((PAY_URL,), (OTHER_PACKAGES,))),
     "reminder": (_ACTIVE, ((CHOOSE_PACKAGE,),)),
     "fallback": (_ACTIVE, ((CHOOSE_PACKAGE,),)),
-    "gift": (_LIST_BUTTONS, ((CHOOSE_PACKAGE,),)),  # під описом подарунка
-    "expired": (_LIST_BUTTONS, ()),
+    "gift": (_LIST_BUTTONS | {COURSE_INFO}, ((CHOOSE_PACKAGE,),)),  # під описом подарунка
+    "course_info": (_LIST_BUTTONS | {GIFT}, ((CHOOSE_PACKAGE,),)),  # під повторним описом курсу
+    # Додаткові ряди під кнопками пакетів у списку пакетів (самі пакети додаються автоматично).
+    "packages_list": (frozenset({GIFT, COURSE_INFO}), ()),
+    "expired": (_LIST_BUTTONS | {COURSE_INFO}, ()),
 }
 
 # ----------------------------------------------------------------------------- тексти
@@ -85,6 +89,8 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     "fallback": (False, COMMON_PLACEHOLDERS, ""),
     # Опис подарунка — відкривається кнопкою gift ("" — подарунка немає).
     "gift": (False, COMMON_PLACEHOLDERS, ""),
+    # Інформація про курс — кнопка course_info ("" — бот повторює текст оферу).
+    "course_info": (False, COMMON_PLACEHOLDERS, ""),
     "manager_payment_request": (
         False,
         frozenset({"user", "username", "user_id", "package", "price", "time_left", "deadline"}),
@@ -93,7 +99,7 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     ),
 }
 # Повідомлення, які можуть бути порожніми ("" = не надсилати).
-OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer", "gift"})
+OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer", "gift", "course_info"})
 # Звичайний текст (без HTML): назва → значення за замовчуванням
 PLAIN_MESSAGES: dict[str, str] = {
     "package_unavailable": "Цей пакет більше недоступний. Оберіть інший 👇",
@@ -106,6 +112,7 @@ BUTTON_TEXTS: dict[str, tuple[frozenset[str], str | None]] = {
     GET_PAYMENT_LINK: (frozenset(), None),
     PAY_URL: (frozenset(), None),
     GIFT: (frozenset(), "🎁 Що за подарунок?"),
+    COURSE_INFO: (frozenset(), "📖 Інформація про курс"),
     "package": (frozenset({"name", "price"}), "{name} — {price}"),
 }
 

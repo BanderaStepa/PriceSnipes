@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message, User
 
 from .funnel import Funnel
 from .storage import Profile
-from .texts import CB_GIFT, CB_PACKAGE, CB_PACKAGES, CB_PAY
+from .texts import CB_COURSE, CB_GIFT, CB_PACKAGE, CB_PACKAGES, CB_PAY
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +72,11 @@ def create_router() -> Router:
     async def on_gift(callback: CallbackQuery, funnel: Funnel) -> None:
         await _answer(callback)
         await funnel.show_gift(profile_of(callback.from_user, _chat_id(callback)))
+
+    @router.callback_query(F.data == CB_COURSE)
+    async def on_course_info(callback: CallbackQuery, funnel: Funnel) -> None:
+        await _answer(callback)
+        await funnel.show_course_info(profile_of(callback.from_user, _chat_id(callback)))
 
     @router.callback_query()
     async def on_unknown_button(callback: CallbackQuery) -> None:
