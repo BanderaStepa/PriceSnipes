@@ -211,3 +211,8 @@
 - `content.yaml`: прибрано 5 заглушок example.com; прибрано рядки «✏️ … @manager» із текстів, які бачать люди
   (`expired`, `expired_notice`, `fallback`), щоб нікого не відправляти на чужий акаунт; «23 уроки».
 - Перевірка: `python -m pytest` — 202 тести.
+- Бот запущено для тестування з хмарної сесії Claude: створено окреме персональне середовище
+  «PriceSnipes — Telegram bot» з доступом лише до api.telegram.org (Default не змінювався); перед запуском
+  перевірено `getMe` (бот «A&I.MASTERY», @aimastery_agent_bot) і `getWebhookInfo` (вебхука немає, черга порожня).
+  Telegram з пісочниці доступний лише через проксі, тому додано `scripts/run_with_proxy.py` (проксі з `HTTPS_PROXY`,
+  сертифікат з `SSL_CERT_FILE`, перевірка TLS увімкнена). Бот працює, конфліктів немає, меню — `/start`.
