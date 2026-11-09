@@ -16,6 +16,9 @@ from bot.scheduler import Scheduler
 from bot.storage import Storage
 from tests.fake_telegram import FakeClock, FakeTelegram, callback_update, message_update
 
+# Еталонний контент для тестів (копія content.yaml на момент написання тестів).
+# Справжній content.yaml належить замовнику і може змінюватися як завгодно — тести від нього не залежать.
+REFERENCE_CONTENT_PATH = Path(__file__).resolve().parent / "fixtures" / "content.yaml"
 DAY = 86400
 # 2026-11-08 12:00:00 за Києвом (UTC+2)
 T0 = 1_794_132_000

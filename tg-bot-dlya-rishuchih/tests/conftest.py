@@ -9,15 +9,14 @@ import pytest
 import yaml
 
 from bot.content import parse_content
-from bot.paths import DEFAULT_CONTENT_PATH
-from tests.harness import Harness, make_harness
+from tests.harness import REFERENCE_CONTENT_PATH, Harness, make_harness
 
-_RAW = yaml.safe_load(DEFAULT_CONTENT_PATH.read_text(encoding="utf-8"))
+_RAW = yaml.safe_load(REFERENCE_CONTENT_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture
 def raw_content() -> dict:
-    """Справжній content.yaml як словник (копія — тест може її змінювати)."""
+    """Еталонний контент тестів як словник (копія — тест може її змінювати)."""
     return copy.deepcopy(_RAW)
 
 
@@ -27,7 +26,7 @@ async def make(tmp_path):
     created: list[Harness] = []
 
     async def factory(change: Callable[[dict], None] | None = None, **kwargs) -> Harness:
-        """change(raw) змінює копію content.yaml; kwargs — manager_chat_id, admin_ids, start…"""
+        """change(raw) змінює копію еталонного контенту; kwargs — manager_chat_id, admin_ids, start…"""
         raw = copy.deepcopy(_RAW)
         if change is not None:
             change(raw)
@@ -42,5 +41,5 @@ async def make(tmp_path):
 
 @pytest.fixture
 async def harness(make) -> Harness:
-    """Бот зі справжнім content.yaml."""
+    """Бот з еталонним контентом тестів."""
     return await make()

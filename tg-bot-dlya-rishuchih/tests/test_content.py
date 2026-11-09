@@ -3,6 +3,7 @@ import pytest
 from bot import check_content
 from bot.content import ContentError, Package, Reminder, load_content, parse_content
 from bot.paths import DEFAULT_CONTENT_PATH
+from tests.harness import REFERENCE_CONTENT_PATH
 
 
 def errors_of(raw) -> list[str]:
@@ -18,11 +19,18 @@ def assert_error(raw, *fragments):
         assert fragment in joined, joined
 
 
-# ----------------------------------------------------------------------------- справжній файл
+# ----------------------------------------------------------------------------- файли контенту
 
 
-def test_real_content_file_is_valid():
+def test_project_content_yaml_is_valid():
+    """Справжній content.yaml (тексти замовника) завантажується без помилок — як під час збірки на хостингу."""
     content = load_content(DEFAULT_CONTENT_PATH)
+    assert content.packages
+    assert "{timer}" in content.messages["offer"]
+
+
+def test_reference_content_file():
+    content = load_content(REFERENCE_CONTENT_PATH)
     s = content.settings
     assert s.offer_duration == 24 * 3600
     assert s.timezone.key == "Europe/Kyiv"
@@ -44,8 +52,8 @@ def test_real_content_file_is_valid():
     assert content.package("nope") is None
 
 
-def test_real_content_warns_about_placeholder_links():
-    content = load_content(DEFAULT_CONTENT_PATH)
+def test_reference_content_warns_about_placeholder_links():
+    content = load_content(REFERENCE_CONTENT_PATH)
     stub_warnings = [w for w in content.warnings if "example.com" in w]
     assert len(stub_warnings) == 3
     # інших попереджень у файлі за замовчуванням бути не повинно
@@ -302,12 +310,12 @@ def test_missing_file(tmp_path):
 
 def test_file_with_bom_from_windows_notepad(tmp_path):
     path = tmp_path / "content.yaml"
-    path.write_bytes(b"\xef\xbb\xbf" + DEFAULT_CONTENT_PATH.read_bytes())
+    path.write_bytes(b"\xef\xbb\xbf" + REFERENCE_CONTENT_PATH.read_bytes())
     assert load_content(path).packages
 
 
 def test_check_content_cli(tmp_path, capsys):
-    assert check_content.main([str(DEFAULT_CONTENT_PATH)]) == 0
+    assert check_content.main([str(REFERENCE_CONTENT_PATH)]) == 0
     out = capsys.readouterr().out
     assert "OK:" in out and "Пакети (3)" in out and "r4: за 1 год до кінця" in out
 

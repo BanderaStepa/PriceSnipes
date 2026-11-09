@@ -8,9 +8,8 @@ from aiogram.methods import EditMessageText, SendMessage
 
 from bot import sender as sender_module
 from bot.content import load_content
-from bot.paths import DEFAULT_CONTENT_PATH
 from tests.fake_telegram import keyboard_of, tg_user
-from tests.harness import DAY, T0, make_harness
+from tests.harness import DAY, REFERENCE_CONTENT_PATH, T0, make_harness
 
 HOUR = 3600
 
@@ -250,7 +249,7 @@ async def test_offer_keeps_button_when_sales_continue(make):
 
 
 async def test_timer_and_reminders_survive_restart(tmp_path):
-    content = load_content(DEFAULT_CONTENT_PATH)
+    content = load_content(REFERENCE_CONTENT_PATH)
     db_path = tmp_path / "bot.db"
 
     first = await make_harness(content, db_path)

@@ -11,9 +11,8 @@ from bot import app as app_module
 from bot.app import build_app, run, wait_for_telegram
 from bot.config import Settings
 from bot.content import load_content
-from bot.paths import DEFAULT_CONTENT_PATH
 from tests.fake_telegram import FakeTelegram, tg_user
-from tests.harness import TOKEN
+from tests.harness import REFERENCE_CONTENT_PATH, TOKEN
 
 ADMIN = 900
 
@@ -122,7 +121,7 @@ async def _app(telegram, db_path=None):
 
     path = db_path or Path(tempfile.mkdtemp()) / "bot.db"
     settings = Settings(bot_token=TOKEN, db_path=path, scheduler_tick=0.05)
-    return await build_app(settings, load_content(DEFAULT_CONTENT_PATH), session=telegram, background_rate=0)
+    return await build_app(settings, load_content(REFERENCE_CONTENT_PATH), session=telegram, background_rate=0)
 
 
 # ----------------------------------------------------------------------------- python -m bot

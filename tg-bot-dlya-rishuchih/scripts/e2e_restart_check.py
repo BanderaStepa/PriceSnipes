@@ -32,7 +32,7 @@ from aiohttp import web
 PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT))
 
-from bot.paths import DEFAULT_CONTENT_PATH  # noqa: E402
+REFERENCE_CONTENT_PATH = PROJECT / "tests" / "fixtures" / "content.yaml"  # еталонний контент (пакети start/optimal/vip)
 
 BOT = {"id": 424242, "is_bot": True, "first_name": "E2E", "username": "e2e_bot"}
 USER = {"id": 1, "is_bot": False, "first_name": "Оля", "username": "olya", "language_code": "uk"}
@@ -191,7 +191,7 @@ async def start_bot(env: dict, log_file, docker_image: str | None, work: Path) -
 
 async def scenario(docker_image: str | None = None) -> int:
     work = Path(tempfile.mkdtemp(prefix="e2e-bot-"))
-    raw = yaml.safe_load(DEFAULT_CONTENT_PATH.read_text(encoding="utf-8"))
+    raw = yaml.safe_load(REFERENCE_CONTENT_PATH.read_text(encoding="utf-8"))
     raw["settings"].update(offer_duration="90 с", timer_update_every="1 хв", silent_hours="")
     raw["reminders"] = [
         {"id": "e1", "after": "20 с", "text": "E2E-НАГАДУВАННЯ-1: залишилось {time_left}"},
