@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY bot/ bot/
+COPY images/ images/
 COPY content.yaml .
 
 # Перевірка контенту під час збірки: якщо в content.yaml помилка, нова версія не збереться

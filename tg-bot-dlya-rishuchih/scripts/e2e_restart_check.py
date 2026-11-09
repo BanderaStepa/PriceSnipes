@@ -155,6 +155,15 @@ class FakeBotAPI:
         self._message_id += 1
         return self._message(self._message_id, params)
 
+    async def _m_sendphoto(self, params: dict) -> dict:
+        self._message_id += 1
+        message = self._message(self._message_id, params)
+        message.pop("text", None)
+        message["caption"] = params.get("caption", "")
+        message["photo"] = [{"file_id": f"photo-{self._message_id}", "file_unique_id": f"u{self._message_id}",
+                             "width": 1280, "height": 955}]
+        return message
+
     async def _m_editmessagetext(self, params: dict) -> dict:
         return self._message(int(params["message_id"]), params)
 

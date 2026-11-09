@@ -29,7 +29,7 @@ from aiogram.exceptions import (
     TelegramServerError,
     TelegramUnauthorizedError,
 )
-from aiogram.types import InlineKeyboardMarkup, LinkPreviewOptions, Message
+from aiogram.types import InlineKeyboardMarkup, InputFile, LinkPreviewOptions, Message
 
 from .htmltext import strip_tags
 
@@ -51,6 +51,7 @@ class Outcome(enum.Enum):
 class Result:
     outcome: Outcome
     message_id: int | None = None
+    file_id: str | None = None  # id надісланого фото в Telegram (щоб наступного разу не завантажувати файл знову)
 
     @property
     def ok(self) -> bool:
@@ -143,6 +144,28 @@ class Sender:
 
         return await self._run("надсилання", chat_id, text, call, background=background, user_chat=user_chat)
 
+    async def send_photo(
+        self,
+        chat_id: int,
+        photo: str | InputFile,
+        caption: str = "",
+        keyboard: InlineKeyboardMarkup | None = None,
+        *,
+        background: bool = False,
+    ) -> Result:
+        """Надсилає фото (файл, посилання або file_id) з необов'язковим HTML-підписом до 1024 символів."""
+
+        async def call(parse_mode: str | None, body: str) -> Any:
+            return await self.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo,
+                caption=body or None,
+                parse_mode=parse_mode if body else None,
+                reply_markup=keyboard,
+            )
+
+        return await self._run("надсилання фото", chat_id, caption, call, background=background, user_chat=True)
+
     async def edit(
         self,
         chat_id: int,
@@ -230,7 +253,8 @@ class Sender:
                 log.error("Помилка Telegram (%s, чат %s): %s", action, chat_id, e)
                 return Result(Outcome.FAILED)
             message_id = response.message_id if isinstance(response, Message) else None
-            return Result(Outcome.OK, message_id)
+            file_id = response.photo[-1].file_id if isinstance(response, Message) and response.photo else None
+            return Result(Outcome.OK, message_id, file_id)
         return Result(Outcome.RETRY)
 
     async def _blocked(self, chat_id: int, user_chat: bool, reason: str) -> Result:

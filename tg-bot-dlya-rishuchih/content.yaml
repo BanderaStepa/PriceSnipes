@@ -241,12 +241,16 @@ keyboards:
 #   payment_url — посилання на оплату саме цього пакета (https://…). Необов'язкове:
 #                 без нього пакет інформаційний — кнопок оплати під описом немає.
 #                 Додасте посилання — кнопка «Отримати посилання на оплату» з'явиться сама.
+#   image       — картинка пакета (необов'язково): файл у папці images (.jpg, .png або .webp, до 10 МБ)
+#                 або https-посилання. Бот надсилає її разом з описом: опис стає підписом під фото.
+#                 Telegram дозволяє підпис до 1024 символів — довший опис прийде окремим повідомленням після фото.
 #   Необов'язково, лише для settings.packages_after_expiry: true —
 #   price_after_expiry і payment_url_after_expiry: ціна і посилання після завершення пропозиції.
 packages:
   - id: start
     name: "⚡️ START"
     price: "3 900 грн"
+    image: "images/start.jpg"
     description: |
       <b>{name} — {price}</b>
 
@@ -265,6 +269,7 @@ packages:
   - id: standard
     name: "🚀 STANDARD"
     price: "5 500 грн"
+    image: "images/standard.jpg"
     description: |
       <b>{name} — {price}</b>
 
@@ -284,6 +289,7 @@ packages:
   - id: automation
     name: "⚙️ AUTOMATION"
     price: "7 700 грн"
+    image: "images/automation.jpg"
     description: |
       <b>{name} — {price}</b>
 
@@ -301,6 +307,7 @@ packages:
   - id: pro
     name: "💳 PRO"
     price: "9 200 грн"
+    image: "images/pro.jpg"
     description: |
       <b>{name} — {price}</b>
 
@@ -318,6 +325,7 @@ packages:
   - id: master
     name: "👑 MASTER"
     price: "14 900 грн"
+    image: "images/master.jpg"
     description: |
       <b>{name} — {price}</b>
 

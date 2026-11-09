@@ -24,3 +24,6 @@
   `python scripts/run_with_proxy.py .` у фоні (`nohup`), токен — лише у змінній `BOT_TOKEN` (файл поза репозиторієм),
   `DB_PATH` — у scratchpad. Перед запуском — `getWebhookInfo` (не зламати чужу інтеграцію). Не запускати одночасно
   з `start_bot.bat` на комп'ютері замовника (конфлікт polling).
+  ⚠️ Хмарну сесію призупиняють приблизно через 5 хв тиші — разом із ботом. Після пробудження перевір
+  `pgrep -f run_with_proxy.py` і `getWebhookInfo` (pending_update_count) і за потреби запусти знову.
+- **Картинки пакетів** — у `images/` (`packages[].image`); Dockerfile їх копіює.

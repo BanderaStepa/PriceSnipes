@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import yaml
 
 from .htmltext import has_tags, placeholders, prepare_html, strip_tags
+from .paths import project_path
 from .timeutils import (
     DEADLINE_PLACEHOLDERS,
     TIME_LEFT_PLACEHOLDERS,
@@ -30,6 +31,9 @@ from .timeutils import (
 TELEGRAM_TEXT_LIMIT = 4096
 TEMPLATE_TEXT_LIMIT = 3900
 CALLBACK_ALERT_LIMIT = 200
+PHOTO_CAPTION_LIMIT = 1024  # ліміт Telegram для підпису під фото
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+IMAGE_MAX_BYTES = 10 * 1024 * 1024  # більші фото Telegram не приймає
 
 # ----------------------------------------------------------------------------- кнопки і клавіатури
 
@@ -125,6 +129,7 @@ class Package:
     payment_url: str | None = None  # None — інформаційний пакет: кнопок оплати немає
     price_after_expiry: str | None = None
     payment_url_after_expiry: str | None = None
+    image: str | None = None  # картинка: шлях від папки проєкту (images/start.jpg) або https-посилання
 
     def price_for(self, expired: bool) -> str:
         return self.price_after_expiry if expired and self.price_after_expiry else self.price
@@ -304,6 +309,26 @@ class _Checker:
             return None
         if host == "example.com" or host.endswith(".example.com"):
             self.warn(path, "це посилання-заглушка (example.com) — замініть на справжнє посилання на оплату")
+        return text
+
+    def image(self, path: str, value: Any) -> str | None:
+        """Картинка: файл у папці проєкту (.jpg/.png/.webp, до 10 МБ) або https-посилання."""
+        text = self.text(path, value, required=False)
+        if not text:
+            return None
+        if text.startswith(("http://", "https://")):
+            return self.url(path, text)
+        file = project_path(text)
+        if not file.is_file():
+            self.error(path, f"файл картинки «{text}» не знайдено (шлях рахується від папки проєкту, "
+                             "наприклад images/start.jpg)")
+            return None
+        if file.suffix.lower() not in IMAGE_EXTENSIONS:
+            self.error(path, "картинка має бути у форматі .jpg, .png або .webp")
+            return None
+        if file.stat().st_size > IMAGE_MAX_BYTES:
+            self.error(path, "картинка більша за 10 МБ — Telegram таке фото не прийме, зменшіть її")
+            return None
         return text
 
     def item_id(self, path: str, value: Any, seen: set[str]) -> str | None:
@@ -500,7 +525,8 @@ class _Checker:
         if not isinstance(raw, list) or not raw:
             self.error("packages", "потрібен хоча б один пакет (список, кожен пакет починається з «- id: …»)")
             return ()
-        known = {"id", "name", "price", "description", "payment_url", "price_after_expiry", "payment_url_after_expiry"}
+        known = {"id", "name", "price", "description", "payment_url", "price_after_expiry", "payment_url_after_expiry",
+                 "image"}
         seen: set[str] = set()
         result: list[Package] = []
         for i, item in enumerate(raw, start=1):
@@ -518,6 +544,11 @@ class _Checker:
             payment_url = self.url(f"{path}.payment_url", item.get("payment_url"), required=False)
             price_after = self.plain(f"{path}.price_after_expiry", item.get("price_after_expiry"), required=False)
             url_after = self.url(f"{path}.payment_url_after_expiry", item.get("payment_url_after_expiry"), required=False)
+            image = self.image(f"{path}.image", item.get("image"))
+            if image and description and len(strip_tags(description)) > PHOTO_CAPTION_LIMIT - 100:
+                self.warn(f"{path}.description", f"опис довший за ~{PHOTO_CAPTION_LIMIT - 100} символів, а підпис під фото "
+                                                 f"обмежено {PHOTO_CAPTION_LIMIT} — картинку буде надіслано окремим "
+                                                 "повідомленням перед описом")
             if None in (package_id, name, price, description):
                 continue
             result.append(
@@ -529,6 +560,7 @@ class _Checker:
                     payment_url=payment_url,  # type: ignore[arg-type]
                     price_after_expiry=price_after,
                     payment_url_after_expiry=url_after,
+                    image=image,
                 )
             )
         return tuple(result)

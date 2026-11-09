@@ -9,9 +9,11 @@ from __future__ import annotations
 import dataclasses
 import logging
 
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import FSInputFile, InlineKeyboardMarkup
 
-from .content import Content, Package, Reminder
+from .content import PHOTO_CAPTION_LIMIT, Content, Package, Reminder
+from .htmltext import strip_tags
+from .paths import project_path
 from .sender import Outcome, Result, Sender
 from .storage import (
     EVENT_PACKAGE,
@@ -51,6 +53,8 @@ class Funnel:
         self.manager_chat_id = manager_chat_id
         # (user_id, message_id) → (останній показаний текст оферу, коли його показали)
         self.timer_cache: dict[tuple[int, int], tuple[str, int]] = {}
+        # картинка пакета → file_id у Telegram: файл завантажується один раз, далі — миттєво за id
+        self.photo_ids: dict[str, str] = {}
 
     # ------------------------------------------------------------------ дії користувача
 
@@ -117,9 +121,7 @@ class Funnel:
             await self._send(user, self.texts.packages_list(user, now), self.texts.packages_keyboard(user, now))
             return
         await self.storage.add_event(user.user_id, EVENT_PACKAGE, now=now, package_id=package.id)
-        await self._send(
-            user, self.texts.package_description(package, user, now), self.texts.keyboard("package", user, now, package)
-        )
+        await self._send_package(user, package, now)
 
     async def send_payment_link(self, profile: Profile, package_id: str) -> None:
         """«Отримати посилання на оплату»: посилання відповідного пакета. Оплата не перевіряється."""
@@ -135,9 +137,7 @@ class Funnel:
             await self._send(user, self.texts.packages_list(user, now), self.texts.packages_keyboard(user, now))
             return
         if not package.url_for(self.texts.is_expired(user, now)):  # оплату для пакета ще не налаштовано
-            await self._send(
-                user, self.texts.package_description(package, user, now), self.texts.keyboard("package", user, now, package)
-            )
+            await self._send_package(user, package, now)
             return
         await self.storage.add_event(user.user_id, EVENT_PAYMENT_LINK, now=now, package_id=package.id)
         log.info("Користувач %s отримав посилання на оплату пакета %s", user.user_id, package.id)
@@ -254,6 +254,36 @@ class Funnel:
 
     async def _send(self, user: UserRecord, text: str, keyboard: InlineKeyboardMarkup | None = None) -> Result:
         return await self.sender.send(user.chat_id, text, keyboard)
+
+    async def _send_package(self, user: UserRecord, package: Package, now: int) -> None:
+        """Опис пакета: з картинкою — фото з описом у підписі (або фото, а потім опис, якщо опис задовгий)."""
+        text = self.texts.package_description(package, user, now)
+        keyboard = self.texts.keyboard("package", user, now, package)
+        if not package.image:
+            await self._send(user, text, keyboard)
+            return
+        fits = len(strip_tags(text)) <= PHOTO_CAPTION_LIMIT
+        photo = await self._send_photo(user, package.image, text if fits else "", keyboard if fits else None)
+        if photo.outcome is Outcome.BLOCKED:
+            return
+        if not photo.ok:  # картинку надіслати не вдалося — опис усе одно має дійти
+            log.warning("Не вдалося надіслати картинку пакета %s — надсилаю опис без неї", package.id)
+            await self._send(user, text, keyboard)
+        elif not fits:
+            await self._send(user, text, keyboard)
+
+    async def _send_photo(
+        self, user: UserRecord, image: str, caption: str, keyboard: InlineKeyboardMarkup | None
+    ) -> Result:
+        cached = self.photo_ids.get(image)
+        source = cached or (image if image.startswith(("http://", "https://")) else FSInputFile(project_path(image)))
+        result = await self.sender.send_photo(user.chat_id, source, caption, keyboard)
+        if cached and result.outcome is Outcome.FAILED:  # збережений id міг застаріти — надсилаємо файл заново
+            self.photo_ids.pop(image, None)
+            return await self._send_photo(user, image, caption, keyboard)
+        if result.ok and result.file_id:
+            self.photo_ids[image] = result.file_id
+        return result
 
     async def _send_expired(self, user: UserRecord, now: int) -> Result:
         return await self._send(user, self.texts.expired(user, now), self.texts.keyboard("expired", user, now))

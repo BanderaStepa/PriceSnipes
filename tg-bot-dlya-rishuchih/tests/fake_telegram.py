@@ -11,8 +11,8 @@ from typing import Any
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramForbiddenError
-from aiogram.methods import DeleteMessage, EditMessageText, GetMe, GetUpdates, SendMessage, TelegramMethod
-from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message, MessageEntity, Update, User
+from aiogram.methods import DeleteMessage, EditMessageText, GetMe, GetUpdates, SendMessage, SendPhoto, TelegramMethod
+from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message, MessageEntity, PhotoSize, Update, User
 
 from bot.timeutils import Clock
 
@@ -58,12 +58,19 @@ class FakeTelegram(BaseSession):
                 del self._failures[index]
                 raise error(method)
         chat_id = getattr(method, "chat_id", None)
-        if chat_id in self.blocked and isinstance(method, (SendMessage, EditMessageText)):
+        if chat_id in self.blocked and isinstance(method, (SendMessage, SendPhoto, EditMessageText)):
             raise TelegramForbiddenError(method=method, message="Forbidden: bot was blocked by the user")
         now = datetime.now(UTC)
         if isinstance(method, SendMessage):
             return Message(message_id=next(self._message_ids), date=now, chat=Chat(id=method.chat_id, type="private"),
                            from_user=BOT_USER, text=method.text)
+        if isinstance(method, SendPhoto):
+            number = next(self._message_ids)
+            # як у Telegram: фото, надіслане за file_id, має той самий file_id; новий файл — новий id
+            file_id = method.photo if isinstance(method.photo, str) else f"photo-{number}"
+            size = PhotoSize(file_id=file_id, file_unique_id=f"unique-{file_id}", width=1280, height=955)
+            return Message(message_id=number, date=now, chat=Chat(id=method.chat_id, type="private"),
+                           from_user=BOT_USER, caption=method.caption, photo=[size])
         if isinstance(method, EditMessageText):
             return Message(message_id=method.message_id, date=now, chat=Chat(id=method.chat_id, type="private"),
                            from_user=BOT_USER, text=method.text)
@@ -81,6 +88,9 @@ class FakeTelegram(BaseSession):
 
     def sent(self, chat_id: int | None = None) -> list[SendMessage]:
         return [r for r in self.calls(SendMessage) if chat_id is None or r.chat_id == chat_id]
+
+    def photos(self, chat_id: int | None = None) -> list[SendPhoto]:
+        return [r for r in self.calls(SendPhoto) if chat_id is None or r.chat_id == chat_id]
 
     def edits(self, chat_id: int | None = None) -> list[EditMessageText]:
         return [r for r in self.calls(EditMessageText) if chat_id is None or r.chat_id == chat_id]
