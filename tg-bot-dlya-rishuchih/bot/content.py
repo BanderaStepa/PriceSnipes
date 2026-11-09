@@ -19,6 +19,7 @@ import yaml
 from .htmltext import has_tags, placeholders, prepare_html, strip_tags
 from .paths import project_path
 from .timeutils import (
+    COUNTDOWN_PLACEHOLDERS,
     DEADLINE_PLACEHOLDERS,
     TIME_LEFT_PLACEHOLDERS,
     DurationError,
@@ -32,6 +33,10 @@ TELEGRAM_TEXT_LIMIT = 4096
 TEMPLATE_TEXT_LIMIT = 3900
 CALLBACK_ALERT_LIMIT = 200
 PHOTO_CAPTION_LIMIT = 1024  # ліміт Telegram для підпису під фото
+# Швидкий відлік: не частіше, ніж раз на 3 с — Telegram дозволяє приблизно 1 повідомлення на секунду в чат,
+# а боту ще треба відповідати на натискання кнопок у тому самому чаті.
+TIMER_FAST_MIN_SECONDS = 3
+PROGRESS_MAX_LENGTH = 20
 IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 IMAGE_MAX_BYTES = 10 * 1024 * 1024  # більші фото Telegram не приймає
 
@@ -62,7 +67,7 @@ KEYBOARDS: dict[str, tuple[frozenset[str], tuple[tuple[str, ...], ...]]] = {
 
 # ----------------------------------------------------------------------------- тексти
 
-COMMON_PLACEHOLDERS = frozenset({"first_name", "time_left", "deadline"})
+COMMON_PLACEHOLDERS = frozenset({"first_name", "time_left", "deadline", "countdown", "progress"})
 PACKAGE_PLACEHOLDERS = COMMON_PLACEHOLDERS | {"name", "price", "payment_url"}
 
 # Повідомлення (Telegram-HTML): назва → (обов'язкове, дозволені підстановки, значення за замовчуванням)
@@ -70,7 +75,7 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     "offer": (True, COMMON_PLACEHOLDERS | {"timer"}, None),
     # Окреме повідомлення з таймером під офером ("" — таймер у самому офері через {timer}).
     "offer_timer": (False, COMMON_PLACEHOLDERS | {"timer"}, ""),
-    "timer": (True, frozenset({"time_left", "deadline"}), None),
+    "timer": (True, frozenset({"time_left", "deadline", "countdown", "progress"}), None),
     "timer_expired": (True, frozenset({"deadline"}), None),
     "packages_list": (True, COMMON_PLACEHOLDERS | {"packages"}, None),
     "package_line": (False, frozenset({"number", "name", "price"}), "{number}. <b>{name}</b> — {price}"),
@@ -110,6 +115,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "deadline_format": "{day} {month_name} о {time}",
     "time_left_format": "auto",
     "timer_update_every": "1 хв",
+    "timer_fast_every": 0,  # швидкий відлік вимкнено, доки його не задано в content.yaml
+    "timer_fast_for": 0,
+    "countdown_format": "{hh}:{mm}:{ss}",
+    "progress_length": 10,
+    "progress_full": "🟩",
+    "progress_empty": "⬜️",
     "packages_after_expiry": False,
     "send_expired_notice": False,
     "silent_hours": "22:00-08:00",
@@ -171,6 +182,12 @@ class ContentSettings:
     deadline_format: str
     time_left_format: str
     timer_update_every: int
+    timer_fast_every: int  # як часто оновлювати таймер, поки людина активна в чаті (0 — як звичайно)
+    timer_fast_for: int  # скільки триває швидкий відлік після останньої дії людини
+    countdown_format: str
+    progress_length: int
+    progress_full: str
+    progress_empty: str
     packages_after_expiry: bool
     send_expired_notice: bool
     silent_hours: SilentHours | None
@@ -397,6 +414,37 @@ class _Checker:
         if update_every is not None and 0 < update_every < 60:
             self.error(p + "timer_update_every", "щонайменше 1 хв (або 0, щоб не оновлювати таймер)")
 
+        fast_every = self.duration(p + "timer_fast_every", get("timer_fast_every"))
+        fast_for = self.duration(p + "timer_fast_for", get("timer_fast_for"))
+        if fast_every is not None and 0 < fast_every < TIMER_FAST_MIN_SECONDS:
+            self.error(p + "timer_fast_every", f"щонайменше {TIMER_FAST_MIN_SECONDS} с — частіше Telegram "
+                       "не дозволяє редагувати повідомлення (або 0, щоб вимкнути швидкий відлік)")
+            fast_every = None
+        if fast_every is not None and fast_for is not None:
+            if bool(fast_every) != bool(fast_for):
+                self.error(p + "timer_fast_every", "швидкий відлік: вкажіть і timer_fast_every, і timer_fast_for "
+                           "(або обидва 0, щоб вимкнути)")
+            elif fast_every and update_every == 0:
+                self.error(p + "timer_fast_every", "швидкий відлік не працює, коли timer_update_every: 0 "
+                           "(таймер не оновлюється) — увімкніть таймер або поставте 0")
+            elif fast_every and update_every is not None and fast_every >= update_every:
+                self.error(p + "timer_fast_every", "має бути частіше за timer_update_every "
+                           f"(зараз {format_duration(fast_every)} і {format_duration(update_every)})")
+
+        countdown_format = self.plain(p + "countdown_format", get("countdown_format"), COUNTDOWN_PLACEHOLDERS)
+        if countdown_format is not None and not placeholders(countdown_format) & COUNTDOWN_PLACEHOLDERS:
+            self.error(p + "countdown_format", "шаблон має містити {hh}, {mm}, {ss} (або {h}, {m}, {s}), "
+                       "наприклад «{hh}:{mm}:{ss}»")
+            countdown_format = None
+
+        progress_length = get("progress_length")
+        if (isinstance(progress_length, bool) or not isinstance(progress_length, int)
+                or not 1 <= progress_length <= PROGRESS_MAX_LENGTH):
+            self.error(p + "progress_length", f"ціле число від 1 до {PROGRESS_MAX_LENGTH}")
+            progress_length = None
+        progress_full = self.plain(p + "progress_full", get("progress_full"), max_len=8)
+        progress_empty = self.plain(p + "progress_empty", get("progress_empty"), max_len=8)
+
         after_expiry = self.boolean(p + "packages_after_expiry", get("packages_after_expiry"))
         expired_notice = self.boolean(p + "send_expired_notice", get("send_expired_notice"))
         link_previews = self.boolean(p + "link_previews", get("link_previews"))
@@ -416,7 +464,8 @@ class _Checker:
             p + "start_command_description", get("start_command_description"), max_len=256
         )
 
-        if None in (duration, tz, deadline_format, time_left_format, update_every, start_description):
+        if None in (duration, tz, deadline_format, time_left_format, update_every, fast_every, fast_for,
+                    countdown_format, progress_length, progress_full, progress_empty, start_description):
             return None
         return ContentSettings(
             offer_duration=duration,  # type: ignore[arg-type]
@@ -424,6 +473,12 @@ class _Checker:
             deadline_format=deadline_format,  # type: ignore[arg-type]
             time_left_format=time_left_format,  # type: ignore[arg-type]
             timer_update_every=update_every,  # type: ignore[arg-type]
+            timer_fast_every=fast_every,  # type: ignore[arg-type]
+            timer_fast_for=fast_for,  # type: ignore[arg-type]
+            countdown_format=countdown_format,  # type: ignore[arg-type]
+            progress_length=progress_length,  # type: ignore[arg-type]
+            progress_full=progress_full,  # type: ignore[arg-type]
+            progress_empty=progress_empty,  # type: ignore[arg-type]
             packages_after_expiry=after_expiry,
             send_expired_notice=expired_notice,
             silent_hours=silent,
@@ -459,6 +514,11 @@ class _Checker:
             if offer is not None and "timer" in placeholders(offer):
                 self.warn("messages.offer", "таймер показується окремим повідомленням (offer_timer), тож {timer} "
                                             "в офері не оновлюватиметься — приберіть його звідси")
+            frozen = sorted(placeholders(offer) & {"countdown", "progress"}) if offer is not None else []
+            if frozen:
+                names = ", ".join("{%s}" % name for name in frozen)
+                self.warn("messages.offer", f"{names} в офері не оновлюватиметься: текст оферу не редагується, "
+                                            "живий таймер — окремим повідомленням. Перенесіть у messages.timer")
         elif offer is not None and "timer" not in placeholders(offer):
             self.warn("messages.offer", "немає підстановки {timer} — таймер в офері не буде показано")
         return result

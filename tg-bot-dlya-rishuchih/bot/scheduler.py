@@ -90,7 +90,17 @@ class Scheduler:
         cache = self.funnel.timer_cache
         for key in [k for k in cache if k not in live]:
             del cache[key]
+        pause, now = self.funnel.timer_pause, self._now()
+        for chat_id in [c for c, until in pause.items() if until <= now]:
+            del pause[chat_id]
         return edited
+
+    @property
+    def timer_tick_seconds(self) -> float:
+        """Як часто перевіряти живі таймери: зі швидким відліком — щосекунди (щоб крок 5 с був рівним)."""
+        if self.funnel.content.settings.timer_fast_every:
+            return min(self.tick_seconds, 1.0)
+        return self.tick_seconds
 
     async def tick(self) -> None:
         """Повний прохід (для тестів і ручного запуску)."""
@@ -104,10 +114,11 @@ class Scheduler:
         if self._tasks:
             return
         self._tasks = [
-            asyncio.create_task(self._loop("нагадування", self._reminders_and_expiry), name="reminders"),
-            asyncio.create_task(self._loop("живий таймер", self.update_timers), name="timers"),
+            asyncio.create_task(self._loop("нагадування", self._reminders_and_expiry, self.tick_seconds),
+                                name="reminders"),
+            asyncio.create_task(self._loop("живий таймер", self.update_timers, self.timer_tick_seconds), name="timers"),
         ]
-        log.info("Планувальник запущено (крок %s с)", self.tick_seconds)
+        log.info("Планувальник запущено (крок %s с, живий таймер — %s с)", self.tick_seconds, self.timer_tick_seconds)
 
     async def stop(self) -> None:
         tasks, self._tasks = self._tasks, []
@@ -121,7 +132,7 @@ class Scheduler:
         await self.process_reminders()
         await self.process_expiry()
 
-    async def _loop(self, name: str, job: Callable[[], Awaitable[object]]) -> None:
+    async def _loop(self, name: str, job: Callable[[], Awaitable[object]], period: float) -> None:
         while True:
             started = time.monotonic()
             try:
@@ -130,4 +141,4 @@ class Scheduler:
                 raise
             except Exception:  # помилка одного проходу не зупиняє бота
                 log.exception("Планувальник (%s): помилка під час проходу — продовжую роботу", name)
-            await asyncio.sleep(max(0.01, self.tick_seconds - (time.monotonic() - started)))
+            await asyncio.sleep(max(0.01, period - (time.monotonic() - started)))

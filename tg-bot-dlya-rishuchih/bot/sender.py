@@ -52,6 +52,7 @@ class Result:
     outcome: Outcome
     message_id: int | None = None
     file_id: str | None = None  # id надісланого фото в Telegram (щоб наступного разу не завантажувати файл знову)
+    retry_after: int | None = None  # RETRY через flood control: через скільки секунд Telegram дозволить знову
 
     @property
     def ok(self) -> bool:
@@ -174,8 +175,13 @@ class Sender:
         keyboard: InlineKeyboardMarkup | None = None,
         *,
         background: bool = True,
+        wait_on_flood: bool = True,
     ) -> Result:
-        """Редагує повідомлення (і його кнопки: keyboard=None прибирає кнопки)."""
+        """Редагує повідомлення (і його кнопки: keyboard=None прибирає кнопки).
+
+        wait_on_flood=False — якщо Telegram просить зачекати (flood control), не чекати, а одразу повернути
+        RETRY із retry_after: так оновлення живого таймера не затримує решту таймерів.
+        """
 
         async def call(parse_mode: str | None, body: str) -> Any:
             return await self.bot.edit_message_text(
@@ -187,7 +193,8 @@ class Sender:
                 link_preview_options=self._preview,
             )
 
-        result = await self._run("редагування", chat_id, text, call, background=background, user_chat=True)
+        result = await self._run("редагування", chat_id, text, call, background=background, user_chat=True,
+                                 wait_on_flood=wait_on_flood)
         return Result(result.outcome, message_id) if result.ok else result
 
     async def delete(self, chat_id: int, message_id: int) -> Result:
@@ -207,6 +214,7 @@ class Sender:
         *,
         background: bool,
         user_chat: bool,
+        wait_on_flood: bool = True,
     ) -> Result:
         parse_mode: str | None = "HTML"
         body = text
@@ -216,9 +224,12 @@ class Sender:
             try:
                 response = await call(parse_mode, body)
             except TelegramRetryAfter as e:
+                if not wait_on_flood:
+                    log.info("Telegram просить зачекати %s с (%s, чат %s) — пропускаю оновлення", e.retry_after, action, chat_id)
+                    return Result(Outcome.RETRY, retry_after=e.retry_after)
                 if e.retry_after > self.MAX_RETRY_AFTER or attempt == self.MAX_ATTEMPTS:
                     log.warning("Telegram просить зачекати %s с (%s, чат %s) — спробую пізніше", e.retry_after, action, chat_id)
-                    return Result(Outcome.RETRY)
+                    return Result(Outcome.RETRY, retry_after=e.retry_after)
                 await _sleep(e.retry_after)
                 continue
             except TelegramForbiddenError as e:

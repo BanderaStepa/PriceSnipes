@@ -12,7 +12,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from .content import CHOOSE_PACKAGE, GET_PAYMENT_LINK, GIFT, OTHER_PACKAGES, PAY_URL, Content, Package, Reminder
 from .htmltext import esc, fill
-from .timeutils import format_deadline, format_time_left
+from .timeutils import format_countdown, format_deadline, format_progress, format_time_left
 
 
 def _tidy(text: str) -> str:
@@ -56,13 +56,24 @@ class Texts:
     def deadline(self, user: Person) -> str:
         return format_deadline(user.deadline_at, self.settings.timezone, self.settings.deadline_format)
 
+    def countdown(self, user: Person, now: int, step: int = 1) -> str:
+        """Відлік «23:59:55». step — крок оновлення живого таймера (значення кратні кроку)."""
+        return format_countdown(user.deadline_at - now, self.settings.countdown_format, step)
+
+    def progress(self, user: Person, now: int) -> str:
+        """Смужка залишку часу «🟩🟩🟩🟩🟩🟩🟩⬜️⬜️⬜️» (частка від тривалості пропозиції)."""
+        s = self.settings
+        return format_progress(user.deadline_at - now, s.offer_duration, s.progress_length, s.progress_full, s.progress_empty)
+
     # ------------------------------------------------------------------ тексти
 
-    def _common(self, user: Person, now: int) -> dict[str, str]:
+    def _common(self, user: Person, now: int, step: int = 1) -> dict[str, str]:
         return {
             "first_name": esc(user.first_name),
             "time_left": esc(self.time_left(user, now)),
             "deadline": esc(self.deadline(user)),
+            "countdown": esc(self.countdown(user, now, step)),
+            "progress": esc(self.progress(user, now)),
         }
 
     def _package_values(self, package: Package, user: Person, now: int) -> dict[str, str]:
@@ -75,13 +86,13 @@ class Texts:
         )
         return values
 
-    def timer_line(self, user: Person, now: int) -> str:
+    def timer_line(self, user: Person, now: int, step: int = 1) -> str:
         key = "timer_expired" if self.is_expired(user, now) else "timer"
-        return _tidy(fill(self.content.messages[key], self._common(user, now)))
+        return _tidy(fill(self.content.messages[key], self._common(user, now, step)))
 
-    def offer(self, user: Person, now: int) -> str:
-        values = self._common(user, now)
-        values["timer"] = self.timer_line(user, now)
+    def offer(self, user: Person, now: int, step: int = 1) -> str:
+        values = self._common(user, now, step)
+        values["timer"] = self.timer_line(user, now, step)
         return _tidy(fill(self.content.messages["offer"], values))
 
     @property
@@ -89,23 +100,23 @@ class Texts:
         """Таймер — окремим повідомленням під офером (messages.offer_timer задано)."""
         return bool(self.content.messages.get("offer_timer"))
 
-    def offer_timer(self, user: Person, now: int) -> str:
-        values = self._common(user, now)
-        values["timer"] = self.timer_line(user, now)
+    def offer_timer(self, user: Person, now: int, step: int = 1) -> str:
+        values = self._common(user, now, step)
+        values["timer"] = self.timer_line(user, now, step)
         return _tidy(fill(self.content.messages["offer_timer"], values))
 
-    def live_offer(self, user: Person, now: int, *, has_body: bool) -> str:
-        """Текст повідомлення з живим таймером.
+    def live_offer(self, user: Person, now: int, *, has_body: bool, step: int = 1) -> str:
+        """Текст повідомлення з живим таймером. step — крок оновлення таймера (для {countdown}).
 
         has_body — офер цього користувача надіслано двома повідомленнями (текст окремо, таймер окремо).
         Якщо офер колись надіслано одним повідомленням, а тепер таймер окремий, — оновлюємо те одне
         повідомлення повністю: текст оферу + таймер (щоб не затерти текст).
         """
         if has_body:
-            return self.offer_timer(user, now)
+            return self.offer_timer(user, now, step)
         if self.separate_timer:
-            return self.offer(user, now) + "\n\n" + self.offer_timer(user, now)
-        return self.offer(user, now)
+            return self.offer(user, now, step) + "\n\n" + self.offer_timer(user, now, step)
+        return self.offer(user, now, step)
 
     def packages_list(self, user: Person, now: int) -> str:
         expired = self.is_expired(user, now)

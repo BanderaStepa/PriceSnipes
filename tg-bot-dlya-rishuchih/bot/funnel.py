@@ -1,7 +1,8 @@
 """Бізнес-логіка воронки «Для рішучих»: старт, пакети, опис, оплата, відповіді на текст.
 
 Обробники aiogram (handlers.py) і фоновий планувальник (scheduler.py) працюють через цей клас.
-Стан зберігається лише в БД; у пам'яті — тільки кеш останнього показаного значення живого таймера.
+Стан зберігається лише в БД; у пам'яті — тільки кеш останнього показаного значення живого таймера
+(і паузи, про які попросив Telegram).
 """
 
 from __future__ import annotations
@@ -41,6 +42,11 @@ class _PreviewPerson:
     username: str | None
     deadline_at: int
 
+def timer_step(interval: int) -> int:
+    """Крок відліку {countdown} для інтервалу оновлення: 5 с → значення кратні 5 с; хвилина і довше → цілі хвилини."""
+    return max(1, min(int(interval), 60))
+
+
 # Повідомлення «пропозиція завершилась» надсилаємо не пізніше ніж через 2 год після дедлайну,
 # щоб після довгого простою сервера не писати людям застарілих повідомлень.
 EXPIRED_NOTICE_GRACE = 2 * 3600
@@ -64,6 +70,8 @@ class Funnel:
         self.manager_chat_id = manager_chat_id
         # (user_id, message_id) → (останній показаний текст оферу, коли його показали)
         self.timer_cache: dict[tuple[int, int], tuple[str, int]] = {}
+        # чат → до якого моменту не редагувати таймер (Telegram попросив зачекати — flood control)
+        self.timer_pause: dict[int, int] = {}
         # картинка пакета → file_id у Telegram: файл завантажується один раз, далі — миттєво за id
         self.photo_ids: dict[str, str] = {}
 
@@ -92,9 +100,9 @@ class Funnel:
             if not body.ok or body.message_id is None:
                 return
             body_id = body.message_id
-            text = self.texts.offer_timer(user, now)
+            text = self.texts.offer_timer(user, now, timer_step(self.timer_interval(user, now)))
         else:
-            text = self.texts.offer(user, now)
+            text = self.texts.offer(user, now, timer_step(self.timer_interval(user, now)))
         result = await self._send(user, text, self.texts.keyboard("offer", user, now))
         if not result.ok or result.message_id is None:
             return
@@ -223,24 +231,48 @@ class Funnel:
             log.info("Нагадування %s надіслано користувачу %s", reminder.id, user.user_id)
         return result.outcome
 
+    def is_active(self, user: UserRecord, now: int) -> bool:
+        """Людина щойно щось робила в чаті (/start, кнопка, повідомлення) — швидкий відлік."""
+        settings = self.content.settings
+        return bool(settings.timer_fast_every) and now - user.last_seen_at < settings.timer_fast_for
+
+    def timer_interval(self, user: UserRecord, now: int) -> int:
+        """Як часто зараз оновлювати таймер цієї людини (секунд; 0 — не оновлювати)."""
+        settings = self.content.settings
+        if not settings.timer_update_every:
+            return 0
+        return settings.timer_fast_every if self.is_active(user, now) else settings.timer_update_every
+
     async def refresh_timer(self, user: UserRecord, now: int) -> Outcome | None:
-        """Оновлює живий таймер в офері, якщо показане значення змінилось. None — оновлювати не треба."""
-        every = self.content.settings.timer_update_every
+        """Оновлює живий таймер в офері, якщо настав час і показане значення змінилось. None — оновлювати не треба.
+
+        Поки людина активна в чаті, таймер оновлюється кожні timer_fast_every (видно, як біжать секунди),
+        інакше — кожні timer_update_every.
+        """
+        every = self.timer_interval(user, now)
         if not every or user.offer_message_id is None:
             return None
         key = (user.user_id, user.offer_message_id)
-        text = self.texts.live_offer(user, now, has_body=user.offer_body_message_id is not None)
         cached = self.timer_cache.get(key)
-        if cached is not None and (cached[0] == text or now - cached[1] < every):
+        if cached is not None and now - cached[1] < every:
+            return None
+        if now < self.timer_pause.get(user.chat_id, 0):
+            return None
+        text = self.texts.live_offer(user, now, has_body=user.offer_body_message_id is not None, step=timer_step(every))
+        if cached is not None and cached[0] == text:
             return None
         result = await self.sender.edit(
-            user.chat_id, user.offer_message_id, text, self.texts.keyboard("offer", user, now), background=True
+            user.chat_id, user.offer_message_id, text, self.texts.keyboard("offer", user, now),
+            background=True, wait_on_flood=False,
         )
         if result.ok:
             self.timer_cache[key] = (text, now)
         elif result.outcome is Outcome.GONE:  # людина видалила повідомлення — більше його не чіпаємо
             await self.storage.clear_offer_message(user.user_id, user.offer_message_id)
             self.timer_cache.pop(key, None)
+        elif result.outcome is Outcome.RETRY and result.retry_after:
+            # Telegram попросив зачекати: цей чат пропускаємо, решта таймерів оновлюється як звичайно
+            self.timer_pause[user.chat_id] = now + result.retry_after
         return result.outcome
 
     async def finish_offer(self, user: UserRecord, now: int) -> Outcome:

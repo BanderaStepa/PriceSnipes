@@ -47,7 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"OK: {path} — помилок немає.\n")
     print(f"Тривалість пропозиції: {format_duration(s.offer_duration)}")
     print(f"Часовий пояс: {s.timezone.key}")
-    if s.timer_update_every:
+    if s.timer_update_every and s.timer_fast_every:
+        print(f"Живий таймер в офері: поки людина в чаті — кожні {format_duration(s.timer_fast_every)} "
+              f"(ще {format_duration(s.timer_fast_for)} після її останньої дії), "
+              f"інакше раз на {format_duration(s.timer_update_every)}")
+    elif s.timer_update_every:
         print(f"Живий таймер в офері: оновлюється раз на {format_duration(s.timer_update_every)}")
     else:
         print("Живий таймер в офері: вимкнено (показується залишок на момент надсилання)")

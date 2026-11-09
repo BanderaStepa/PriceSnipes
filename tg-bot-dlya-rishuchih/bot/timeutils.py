@@ -1,4 +1,4 @@
-"""Час: тривалості («24 год», «90 хв»), формат {time_left} і {deadline}, тихі години, годинник."""
+"""Час: тривалості («24 год», «90 хв»), формат {time_left}, {countdown}, {progress} і {deadline}, тихі години, годинник."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ MONTHS_GENITIVE = (
 
 DEADLINE_PLACEHOLDERS = frozenset({"day", "month", "month_name", "year", "time", "date"})
 TIME_LEFT_PLACEHOLDERS = frozenset({"h", "hh", "m", "mm"})
+COUNTDOWN_PLACEHOLDERS = frozenset({"h", "hh", "m", "mm", "s", "ss"})
 
 
 class DurationError(ValueError):
@@ -130,6 +131,40 @@ def format_time_left(seconds_left: float, template: str = "auto") -> str:
         template,
         {"h": str(hours), "hh": f"{hours:02d}", "m": str(minutes), "mm": f"{minutes:02d}"},
     )
+
+
+def format_countdown(seconds_left: float, template: str = "{hh}:{mm}:{ss}", step: int = 1) -> str:
+    """Відлік для {countdown}: «23:59:55». Шаблон з {h} {hh} {m} {mm} {s} {ss}.
+
+    step — крок оновлення таймера в секундах: значення округлюється вгору до кратного кроку від дедлайну
+    (крок 5 с → «23:59:55», «23:59:50»…), тож відлік рівний і ніколи не показує менше, ніж є насправді.
+    """
+    step = max(1, int(step))
+    left = max(0, math.ceil(seconds_left))
+    shown = -(-left // step) * step  # ціле ділення з округленням угору
+    hours, rest = divmod(shown, 3600)
+    minutes, seconds = divmod(rest, 60)
+    return fill(
+        template,
+        {
+            "h": str(hours), "hh": f"{hours:02d}",
+            "m": str(minutes), "mm": f"{minutes:02d}",
+            "s": str(seconds), "ss": f"{seconds:02d}",
+        },
+    )
+
+
+def format_progress(seconds_left: float, total: int, length: int = 10, full: str = "🟩", empty: str = "⬜️") -> str:
+    """Смужка залишку часу для {progress}: «🟩🟩🟩🟩🟩🟩🟩⬜️⬜️⬜️» — заповнених клітинок стільки, скільки часу лишилось.
+
+    Клітинка гасне, лише коли її частка часу минула повністю: остання тримається до самого кінця.
+    """
+    left = math.ceil(seconds_left)
+    if left <= 0 or total <= 0:
+        filled = 0
+    else:
+        filled = min(length, -(-left * length // total))  # цілочисельно: без похибок округлення
+    return full * filled + empty * (length - filled)
 
 
 def format_deadline(timestamp: int, tz: ZoneInfo, template: str) -> str:
