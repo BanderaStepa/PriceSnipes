@@ -84,6 +84,7 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
     "packages_list": (True, COMMON_PLACEHOLDERS | {"packages"}, None),
     "package_line": (False, frozenset({"number", "name", "price"}), "{number}. <b>{name}</b> — {price}"),
     "payment": (True, PACKAGE_PLACEHOLDERS, None),
+    # Відповідь після завершення пропозиції ("" — опис курсу, як кнопка course_info, без таймера й подарунка).
     "expired": (True, COMMON_PLACEHOLDERS, None),
     "expired_notice": (False, COMMON_PLACEHOLDERS, "⌛️ Пропозиція для рішучих завершилась."),
     "fallback": (False, COMMON_PLACEHOLDERS, ""),
@@ -98,8 +99,8 @@ MESSAGES: dict[str, tuple[bool, frozenset[str], str | None]] = {
         "Користувач: {user} {username}\nID: <code>{user_id}</code>\nДо кінця пропозиції: {time_left}",
     ),
 }
-# Повідомлення, які можуть бути порожніми ("" = не надсилати).
-OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer", "gift", "course_info"})
+# Повідомлення, які можуть бути порожніми ("" = не надсилати; для expired — надіслати опис курсу).
+OPTIONAL_EMPTY_MESSAGES = frozenset({"fallback", "offer_timer", "gift", "course_info", "expired"})
 # Звичайний текст (без HTML): назва → значення за замовчуванням
 PLAIN_MESSAGES: dict[str, str] = {
     "package_unavailable": "Цей пакет більше недоступний. Оберіть інший 👇",

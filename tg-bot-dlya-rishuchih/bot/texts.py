@@ -149,7 +149,11 @@ class Texts:
         return _tidy(fill(self.content.messages["payment"], self._package_values(package, user, now)))
 
     def expired(self, user: Person, now: int) -> str:
-        return _tidy(fill(self.content.messages["expired"], self._common(user, now)))
+        """Відповідь після завершення пропозиції. Порожній messages.expired — опис курсу (як кнопка course_info)."""
+        template = self.content.messages["expired"]
+        if not template:
+            return self.course_info(user, now)
+        return _tidy(fill(template, self._common(user, now)))
 
     def expired_notice(self, user: Person, now: int) -> str:
         return _tidy(fill(self.content.messages["expired_notice"], self._common(user, now)))
@@ -190,12 +194,11 @@ class Texts:
     # ------------------------------------------------------------------ клавіатури
 
     def keyboard(self, name: str, user: Person, now: int, package: Package | None = None) -> InlineKeyboardMarkup | None:
-        """Клавіатура з keyboards.<name>. Коли пакети недоступні (після дедлайну), кнопок немає.
+        """Клавіатура з keyboards.<name>. Коли пакети недоступні (після дедлайну), лишається лише course_info.
 
         Кнопки оплати показуються лише для пакета з посиланням на оплату (інформаційний пакет — без них).
         """
-        if not self.packages_open(user, now):
-            return None
+        packages_open = self.packages_open(user, now)
         expired = self.is_expired(user, now)
         buttons_text = self.content.buttons
         rows: list[list[InlineKeyboardButton]] = []
@@ -203,11 +206,16 @@ class Texts:
             buttons: list[InlineKeyboardButton] = []
             for button_id in row:
                 if button_id in (CHOOSE_PACKAGE, OTHER_PACKAGES):
-                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PACKAGES))
-                elif button_id == GET_PAYMENT_LINK and package is not None and package.url_for(expired):
-                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PAY + package.id))
-                elif button_id == PAY_URL and package is not None and (url := package.url_for(expired)):
-                    buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=url))
+                    if packages_open:
+                        buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PACKAGES))
+                elif button_id == GET_PAYMENT_LINK:
+                    if packages_open and package is not None and package.url_for(expired):
+                        buttons.append(
+                            InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_PAY + package.id)
+                        )
+                elif button_id == PAY_URL:
+                    if packages_open and package is not None and (url := package.url_for(expired)):
+                        buttons.append(InlineKeyboardButton(text=buttons_text[button_id], url=url))
                 elif button_id == GIFT and not expired and self.content.messages.get("gift"):
                     buttons.append(InlineKeyboardButton(text=buttons_text[button_id], callback_data=CB_GIFT))
                 elif button_id == COURSE_INFO:

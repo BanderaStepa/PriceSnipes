@@ -109,13 +109,15 @@ async def test_single_message_offer_is_repeated_with_current_time_left(make):
     assert "Залишилось: <b>23 год</b>" in reply.text
 
 
-async def test_after_deadline_says_offer_is_over(make):
+async def test_after_deadline_button_still_shows_course_info(make):
+    # Опис курсу — не акція: і після завершення пропозиції кнопка показує його, але вже без кнопок пакетів
     harness = await make(with_course_button)
     await started(harness)
     harness.clock.advance(DAY)
     await harness.press(CB_COURSE)
     [reply] = harness.telegram.sent(1)
-    assert reply.text.startswith("⌛️ Пропозиція для рішучих уже завершилась.")
+    assert reply.text == BODY
+    assert reply.reply_markup is None
 
 
 async def test_press_is_recorded_for_statistics(make):

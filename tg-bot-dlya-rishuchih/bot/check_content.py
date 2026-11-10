@@ -59,6 +59,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Після завершення пропозиції: пакети доступні й далі")
     else:
         print("Після завершення пропозиції: пакети й оплата недоступні")
+    if not content.messages.get("expired"):
+        print("Відповідь після завершення: опис курсу (як «Інформація про курс»), без таймера й подарунка")
     print("Повідомлення в момент завершення: " + ("так" if s.send_expired_notice else "ні"))
     print("Тихі години (без звуку): " + (s.silent_hours.describe() if s.silent_hours else "вимкнено"))
 

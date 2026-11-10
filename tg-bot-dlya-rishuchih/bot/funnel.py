@@ -195,9 +195,7 @@ class Funnel:
         if user is None:
             return
         now = self.clock.now()
-        if not self.texts.packages_open(user, now):
-            await self._send_expired(user, now)
-            return
+        # Опис курсу — не акція: показуємо його й після завершення пропозиції (без кнопок пакетів і подарунка).
         await self.storage.add_event(user.user_id, EVENT_COURSE_INFO, now=now)
         await self._send(user, self.texts.course_info(user, now), self.texts.keyboard("course_info", user, now))
 
